@@ -101,6 +101,13 @@ class VHP extends Token {
   }
 }
 
+class KoinosFund {
+  // todo: define entry point
+  pay_projects(): void {
+    System.call(Constants.KoinosFundContractId(), 0x00000000, new Uint8Array(0));
+  }
+}
+
 export class Pob {
   register_public_key(args: pob.register_public_key_arguments): pob.register_public_key_result {
     System.require(args.producer != null, 'producer cannot be null');
@@ -198,8 +205,7 @@ export class Pob {
 
     // pay projects in Koinos Fund
     if (args.header!.timestamp >= metadata.last_fund_execution + Constants.MILLISECONDS_PER_MONTH) {
-      // TODO: call Koinos Fund contract to pay projects
-      System.call(Constants.KoinosFundContractId(), 0x00000000, new Uint8Array(0));
+      new KoinosFund().pay_projects();
       metadata.last_fund_execution = args.header!.timestamp;
     }
 
