@@ -12,7 +12,7 @@ namespace Constants {
    *
    *  x = blocks_per_year * ( ( 1 + desired_inflation_rate ) ^ ( 1 / blocks_per_year ) - 1 )
    */
-  export const DEFAULT_ANNUAL_INFLATION_RATE: u32 = 19802; // 2%
+  export const DEFAULT_ANNUAL_INFLATION_RATE: u32 = 39221; // 4%
   export const DEFAULT_TARGET_BURN_PERCENT: u32 = 501000; // 50.1%
   export const DEFAULT_TARGET_BLOCK_INTERVAL_MS: u32 = 3000; // 3s
   export const DEFAULT_QUANTUM_LENGTH_MS: u32 = 10;
@@ -21,11 +21,13 @@ namespace Constants {
   export const INITIAL_DIFFICULTY_BITS:u8 = BUILD_FOR_TESTING ? 44 : 58;
   export const ONE_HUNDRED_PERCENT: u32 = 1000000;
   export const MILLISECONDS_PER_YEAR = 31536000000;
+  export const MILLISECONDS_PER_MONTH = 2628000000;
   export const DELAY_BLOCKS: u64 = 20;
 
   let contractId: Uint8Array | null = null;
   let koinContractId: Uint8Array | null = null;
   let vhpContractId: Uint8Array | null = null;
+  let koinosFundContractId: Uint8Array | null = null;
 
   export function ContractId() : Uint8Array {
     if (contractId === null) {
@@ -49,6 +51,14 @@ namespace Constants {
     }
 
     return vhpContractId!;
+  }
+
+  export function KoinosFundContractId(): Uint8Array {
+    if (koinosFundContractId === null ) {
+      koinosFundContractId = System.getContractAddress('koinos-fund');
+    }
+
+    return koinosFundContractId!;
   }
 }
 
@@ -175,16 +185,25 @@ export class Pob {
 
     const blocks_per_year = Constants.MILLISECONDS_PER_YEAR / params.target_block_interval;
 
-    const block_reward = yearly_inflation.toU64() / blocks_per_year;
+    const new_koins = yearly_inflation.toU64() / blocks_per_year;
+    const block_reward = new_koins / 2;
+    const block_fund = new_koins - block_reward;
     // virtual supply starts at 10000000000000000 and target_burn_percent is 501000. This already uses 73 bits
     const vhp_reduction = (virtual_supply * u128.fromU64(params.target_burn_percent)) / u128.fromU64(blocks_per_year * Constants.ONE_HUNDRED_PERCENT);
 
     // On successful block deduct vhp and mint new koin
     System.require(vhpToken.burn(args.header!.signer, vhp_reduction.toU64()), "could not burn vhp");
     System.require(koinToken.mint(args.header!.signer, block_reward + vhp_reduction.toU64()), "could not mint token");
+    System.require(koinToken.mint(Constants.KoinosFundContractId(), block_fund), "could not mint token for fund");
+
+    // pay projects in Koinos Fund
+    if (args.header!.timestamp >= metadata.last_fund_execution + Constants.MILLISECONDS_PER_MONTH) {
+      // TODO: call Koinos Fund contract to pay projects
+      System.call(Constants.KoinosFundContractId(), 0x00000000, new Uint8Array(0));
+      metadata.last_fund_execution = args.header!.timestamp;
+    }
 
     this.update_difficulty(difficulty, metadata, params, args.header!.timestamp, signature.vrf_hash);
-
     return new system_calls.process_block_signature_result(true);
   }
 
@@ -210,7 +229,8 @@ export class Pob {
     let new_data = new pob.metadata(
       System.hash(Crypto.multicodec.sha2_256, vrf_hash)!,
       new_difficulty.toUint8Array(true),
-      current_block_time
+      current_block_time,
+      metadata.last_fund_execution
     );
 
     System.putObject(State.Space.Metadata(), Constants.METADATA_KEY, new_data, pob.metadata.encode);
