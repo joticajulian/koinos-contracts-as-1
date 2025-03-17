@@ -3,7 +3,7 @@
 // Julian Gonzalez (joticajulian@gmail.com)
 // Koinos Group, Inc. (contact@koinos.group)
 
-import { Arrays, authority, chain, error, kcs4, Storage, System } from "@koinos/sdk-as";
+import { Arrays, authority, chain, error, kcs4, Storage, System, Protobuf, fund } from "@koinos/sdk-as";
 import { vhp } from "./proto/vhp";
 
 /**
@@ -50,6 +50,36 @@ namespace Detail {
     }
 
     return zone;
+  }
+}
+
+namespace Constants {
+  let koinosFundContractId: Uint8Array | null = null;
+
+  export function KoinosFundContractId(): Uint8Array {
+    if (koinosFundContractId === null ) {
+      koinosFundContractId = System.getContractAddress('koinos-fund');
+    }
+
+    return koinosFundContractId!;
+  }
+}
+
+class KoinosFund {
+  // todo: define entry point
+  update_votes(account: Uint8Array, oldBalance: u64, newBalance: u64): void {
+    System.call(
+      Constants.KoinosFundContractId(),
+      0x00000000,
+      Protobuf.encode(
+        new fund.update_votes_arguments(
+          account,
+          oldBalance,
+          newBalance,
+        ),
+        fund.update_votes_arguments.encode
+      )
+    );
   }
 }
 
@@ -165,6 +195,21 @@ export class Vhp {
     return result;
   }
 
+  set_votes_koinos_fund(args: koin.set_votes_koinos_fund_arguments): void {
+    const caller = System.getCaller();
+    System.require(
+      Arrays.equal(
+        caller.caller,
+        Constants.KoinosFundContractId()
+      ),
+      "only the koinos-fund contract can set votes",
+      error.error_code.authorization_failure
+    );
+    const balance = this.balances.get(args.account!)!;
+    balance.votes_koinos_fund = args.votes_koinos_fund;
+    this.balances.put(args.account!, balance);
+  }
+
   transfer(args: kcs4.transfer_arguments): kcs4.transfer_result {
     System.require(args.to != null, "account 'to' cannot be null");
     System.require(args.from != null, "account 'from' cannot be null");
@@ -181,8 +226,26 @@ export class Vhp {
 
     let toBalance = this.balances.get(args.to)!;
     let blockHeight = System.getBlockField("header.height")!.uint64_value;
+    const fromOldBalance = fromBalance.current_balance;
+    const toOldBalance = toBalance.current_balance;
     this._decrease_balance_by(fromBalance, blockHeight, args.value);
     this._increase_balance_by(toBalance, blockHeight, args.value);
+
+    if (fromBalance.votes_koinos_fund) {
+      new KoinosFund().update_votes(
+        args.from,
+        fromOldBalance,
+        fromBalance.current_balance
+      );
+    }
+
+    if (toBalance.votes_koinos_fund) {
+      new KoinosFund().update_votes(
+        args.to,
+        toOldBalance,
+        toBalance.current_balance
+      );
+    }
 
     this.balances.put(args.from, fromBalance);
     this.balances.put(args.to, toBalance);
@@ -214,8 +277,17 @@ export class Vhp {
 
     let balance = this.balances.get(args.to)!;
 
+    const oldBalance = balance.current_balance;
     this._increase_balance_by(balance, System.getBlockField("header.height")!.uint64_value, args.value);
     supply.value += args.value;
+
+    if (balance.votes_koinos_fund) {
+      new KoinosFund().update_votes(
+        args.to,
+        oldBalance,
+        balance.current_balance
+      );
+    }
 
     this.supply.put(supply);
     this.balances.put(args.to, balance);
@@ -255,8 +327,17 @@ export class Vhp {
     let supply = this.supply.get()!;
     System.require(supply.value >= args.value, 'burn would underflow supply', error.error_code.failure);
 
+    const fromOldBalance = fromBalance.current_balance;
     supply.value -= args.value;
     this._decrease_balance_by(fromBalance, System.getBlockField("header.height")!.uint64_value, args.value);
+
+    if (fromBalance.votes_koinos_fund) {
+      new KoinosFund().update_votes(
+        args.from,
+        fromOldBalance,
+        fromBalance.current_balance
+      );
+    }
 
     this.supply.put(supply);
     this.balances.put(args.from, fromBalance);
