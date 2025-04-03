@@ -195,7 +195,9 @@ export class Fund {
     System.require(globalVars, "fund contract not configured");
     const project = this.projects.get(`${args.project_id}`);
     System.require(project, "project not found");
-    System.require(project!.status != fund.project_status.past, "cannot update votes on past projects");
+
+    const koinContract = new Token(System.getContractAddress("koin"));
+    const vhpContract = new Token(System.getContractAddress("vhp"));
 
     // get current vote to see weight and expiration
     const keyByVoter = new Uint8Array(31);
@@ -203,15 +205,55 @@ export class Fund {
     keyByVoter.set(StringBytes.stringToBytes(`${project!.id}`), 25);
     let vote = this.projectsByVoter.get(keyByVoter);
 
+    // get weights used by the user
+    const weight = this.weights.get(args.voter!)!;
+
+    if (project!.status == fund.project_status.past) {
+      System.require(!!vote, "cannot vote on past projects");
+      System.require(args.weight == 0, "cannot update vote on past project, only remove vote");
+
+      // remove vote from the list of user votes
+      this.projectsByVoter.remove(keyByVoter);
+
+      // remove vote from the weights used by the user
+      weight.weight -= vote!.weight;
+      if (weight.weight > 0) {
+        this.weights.put(args.voter!, weight);
+      } else {
+        this.weights.remove(args.voter!);
+        // no votes from the user, notify KOIN and VHP contracts
+        // to avoid calling the koinos fund contract when there
+        // are new updates in the balances
+        koinContract.set_votes_koinos_fund(args.voter!, false);
+        vhpContract.set_votes_koinos_fund(args.voter!, false);
+      }
+
+      System.event(
+        "fund.update_vote_arguments",
+        Protobuf.encode(
+          args,
+          fund.update_vote_arguments.encode
+        ),
+        [args.voter!]
+      );
+
+      return new fund.update_vote_result();
+    }
+
+    if (weight.weight == 0 && args.weight > 0) {
+      // first user vote, notify KOIN and VHP contracts
+      // to remember to call the koinos fund contract whenever
+      // there are updates in the balances
+      koinContract.set_votes_koinos_fund(args.voter!, true);
+      vhpContract.set_votes_koinos_fund(args.voter!, true);
+    }
+
     // get ID of the project in the list ordered by votes
     const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
 
     // get user's KOIN and VHP balance
-    const koinBalance = new Token(System.getContractAddress("koin")).balance_of(args.voter!);
-    const vhpBalance = new Token(System.getContractAddress("vhp")).balance_of(args.voter!);
-
-    // get weights used by the user
-    const weight = this.weights.get(args.voter!)!;
+    const koinBalance = koinContract.balance_of(args.voter!);
+    const vhpBalance = vhpContract.balance_of(args.voter!);
 
     // if vote already exist update weight and expiration
     if (vote) {
@@ -233,11 +275,25 @@ export class Fund {
     // update weights used by the user
     weight.weight += args.weight;
     System.require(weight.weight <= 20, `vote exceeded. ${100 - 5 * weight.weight}% votes available`);
-    this.weights.put(args.voter!, weight);
+    if (weight.weight > 0) {
+      this.weights.put(args.voter!, weight);
+    } else {
+      this.weights.remove(args.voter!);
+      // no votes from the user, notify KOIN and VHP contracts
+      // to avoid calling the koinos fund contract when there
+      // are new updates in the balances
+      koinContract.set_votes_koinos_fund(args.voter!, false);
+      vhpContract.set_votes_koinos_fund(args.voter!, false);
+    }
 
-    // update user vote and expiration time (most distant expiration)
-    vote = new fund.vote_info(globalVars!.expiration_time[5], args.weight);
-    this.projectsByVoter.put(keyByVoter, vote);
+    if (args.weight > 0) {
+      // update user vote and expiration time (most distant expiration)
+      vote = new fund.vote_info(globalVars!.expiration_time[5], args.weight);
+      this.projectsByVoter.put(keyByVoter, vote);
+    } else {
+      // remove vote
+      this.projectsByVoter.remove(keyByVoter);
+    }
 
     // update votes in the project (votes with most distant expiration)
     const voteWeight = args.weight * (koinBalance + vhpBalance);

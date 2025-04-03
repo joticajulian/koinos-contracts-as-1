@@ -58,8 +58,7 @@ message set_votes_koinos_fund_arguments {
 message update_vote_arguments {
   bytes voter = 1;
   uint32 project_id = 2;
-  bool vote = 3;
-  uint32 weight = 4;
+  uint32 weight = 3;
 }
 
 message update_vote_result {
