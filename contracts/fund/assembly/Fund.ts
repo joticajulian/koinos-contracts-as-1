@@ -5,18 +5,45 @@ import { Arrays, StringBytes, authority, chain, error, kcs4, Protobuf, Storage, 
 import { fund } from "./proto/fund";
 
 const GLOBAL_VARS_SPACE_ID = 0;
-const ACTIVE_PROJECTS_BY_ID_SPACE_ID = 1;
-const ACTIVE_PROJECTS_BY_VOTER_SPACE_ID = 2;
-const UPCOMING_PROJECTS_BY_ID_SPACE_ID = 3;
-const UPCOMING_PROJECTS_BY_VOTER_SPACE_ID = 4;
-const PAST_PROJECTS_BY_ID_SPACE_ID = 5;
-const PAST_PROJECTS_BY_VOTER_SPACE_ID = 6;
+const PROJECTS_SPACE_ID = 1;
+const ACTIVE_PROJECTS_SPACE_ID = 2;
+const UPCOMING_PROJECTS_SPACE_ID = 3;
+const PAST_PROJECTS_SPACE_ID = 4;
+const PROJECTS_BY_VOTER_SPACE_ID = 5;
+const WEIGHTS_BY_VOTER_SPACE_ID = 6;
+
+/**
+ * idByVotes helps to order projects by number of votes.
+ * The ID of the records has two parts: number of votes and project ID.
+ * - number of votes: First 17 digits. Allow up to 1 billion -1 votes.
+ * - project ID: 6 digits. Allow up to 1 million -1 projects.
+ */
+function idByVotes(votes: u64, projectId: u32): string {
+  return `${votes}`.padStart(17, "0") + `${1e6 - projectId}`.padStart(6, "0");
+}
 
 class Token {
   contractId: Uint8Array;
 
   constructor(contractId: Uint8Array) {
     this.contractId = contractId;
+  }
+
+  balance_of(account: Uint8Array): u64 {
+    const callRes = System.call(
+      this.contractId,
+      0x5c721497,
+      Protobuf.encode(
+        new kcs4.balance_of_arguments(account),
+        kcs4.balance_of_arguments.encode
+      )
+    );
+    if (callRes.code != 0) {
+      const errorMessage = `failed to call 'Token.balance_of': ${callRes.res.error && callRes.res.error!.message ? callRes.res.error!.message : "unknown error"}`;
+      System.exit(callRes.code, StringBytes.stringToBytes(errorMessage));
+    }
+    if (!callRes.res.object) return 0;
+    return Protobuf.decode<kcs4.balance_of_result>(callRes.res.object, kcs4.balance_of_result.decode).value;
   }
 
   set_votes_koinos_fund(account: Uint8Array, votes_koinos_fund: bool): void {
@@ -60,57 +87,57 @@ export class Fund {
     null
   );
 
-  activeProjectsById: Storage.Map< string, fund.project > = new Storage.Map(
+  projects: Storage.Map< string, fund.project > = new Storage.Map(
     this.contractId,
-    ACTIVE_PROJECTS_BY_ID_SPACE_ID,
+    PROJECTS_SPACE_ID,
     fund.project.decode,
     fund.project.encode,
     null,
     true
   );
 
-  upcomingProjectsById: Storage.Map< string, fund.project > = new Storage.Map(
+  activeProjects: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    UPCOMING_PROJECTS_BY_ID_SPACE_ID,
-    fund.project.decode,
-    fund.project.encode,
-    null,
-    true
-  );
-
-  pastProjectsById: Storage.Map< string, fund.project > = new Storage.Map(
-    this.contractId,
-    PAST_PROJECTS_BY_ID_SPACE_ID,
-    fund.project.decode,
-    fund.project.encode,
-    null,
-    true
-  );
-
-  activeProjectsByVoter: Storage.Map< string, fund.existence > = new Storage.Map(
-    this.contractId,
-    ACTIVE_PROJECTS_BY_VOTER_SPACE_ID,
+    ACTIVE_PROJECTS_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
     true
   );
 
-  upcomingProjectsByVoter: Storage.Map< string, fund.existence > = new Storage.Map(
+  upcomingProjects: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    UPCOMING_PROJECTS_BY_VOTER_SPACE_ID,
+    UPCOMING_PROJECTS_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
     true
   );
 
-  pastProjectsByVoter: Storage.Map< string, fund.existence > = new Storage.Map(
+  pastProjects: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    PAST_PROJECTS_BY_VOTER_SPACE_ID,
+    PAST_PROJECTS_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
+    true
+  );
+
+  projectsByVoter: Storage.Map< Uint8Array, fund.vote_info > = new Storage.Map(
+    this.contractId,
+    PROJECTS_BY_VOTER_SPACE_ID,
+    fund.vote_info.decode,
+    fund.vote_info.encode,
+    null,
+    true
+  );
+
+  weights: Storage.Map< Uint8Array, fund.vote_info > = new Storage.Map(
+    this.contractId,
+    WEIGHTS_BY_VOTER_SPACE_ID,
+    fund.vote_info.decode,
+    fund.vote_info.encode,
+    () => new fund.vote_info(),
     true
   );
 
@@ -137,14 +164,18 @@ export class Fund {
       args.monthly_payment,
       args.starting_date,
       args.ending_date,
+      fund.project_status.upcoming,
+      0,
       votes,
     );
 
     if (now < args.starting_date) {
-      this.upcomingProjectsById.put(`${id}`, project);
+      this.upcomingProjects.put(idByVotes(0, id), new fund.existence());
     } else {
-      this.activeProjectsById.put(`${id}`, project);
+      this.activeProjects.put(idByVotes(0, id), new fund.existence());
+      project.status = fund.project_status.active;
     }
+    this.projects.put(`${id}`, project);
 
     System.event(
       "fund.submit_project_arguments",
@@ -156,17 +187,83 @@ export class Fund {
     );
 
     return new fund.submit_project_result();
-
-    /*
-    // 17 digits allow up to 1 billion -1 votes
-    // 6 digits for an ID allow up to 1 million -1 projects
-    const idByVotes = `${votes}`.padStart(17, "0") + `${1e6 - id}`.padStart(6, "0");
-    */
   }
 
-  /*
   update_vote(args: fund.update_vote_arguments): fund.update_vote_result {
+    System.require(System.checkAccountAuthority(args.voter!), "not authorized by the voter")
+    const globalVars = this.globalVars.get();
+    System.require(globalVars, "fund contract not configured");
+    const project = this.projects.get(`${args.project_id}`);
+    System.require(project, "project not found");
+    System.require(project!.status != fund.project_status.past, "cannot update votes on past projects");
 
+    // get current vote to see weight and expiration
+    const keyByVoter = new Uint8Array(31);
+    keyByVoter.set(args.voter!);
+    keyByVoter.set(StringBytes.stringToBytes(`${project!.id}`), 25);
+    let vote = this.projectsByVoter.get(keyByVoter);
+
+    // get ID of the project in the list ordered by votes
+    const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
+
+    // get user's KOIN and VHP balance
+    const koinBalance = new Token(System.getContractAddress("koin")).balance_of(args.voter!);
+    const vhpBalance = new Token(System.getContractAddress("vhp")).balance_of(args.voter!);
+
+    // get weights used by the user
+    const weight = this.weights.get(args.voter!)!;
+
+    // if vote already exist update weight and expiration
+    if (vote) {
+      // we remove the weight previously used, and the new weight will be added later
+      weight.weight -= vote.weight;
+
+      // remove votes from the project, the new votes with new weight will be added later.
+      // only remove it if it has not expired
+      const previousVoteWeight = vote.weight * (koinBalance + vhpBalance);
+      for (let i = 0; i < 6; i += 1) {
+        if (globalVars!.expiration_time[i] == vote.expiration) {
+          // there are 6 expiration times, remove it from the corresponding period
+          project!.votes[i] -= previousVoteWeight;
+          project!.total_votes -= previousVoteWeight;
+        }
+      }
+    }
+
+    // update weights used by the user
+    weight.weight += args.weight;
+    System.require(weight.weight <= 20, `vote exceeded. ${100 - 5 * weight.weight}% votes available`);
+    this.weights.put(args.voter!, weight);
+
+    // update user vote and expiration time (most distant expiration)
+    vote = new fund.vote_info(globalVars!.expiration_time[5], args.weight);
+    this.projectsByVoter.put(keyByVoter, vote);
+
+    // update votes in the project (votes with most distant expiration)
+    const voteWeight = args.weight * (koinBalance + vhpBalance);
+    project!.votes[5] += voteWeight;
+    project!.total_votes += voteWeight;
+    this.projects.put(`${args.project_id}`, project!);
+
+    // reorder project in the list ordered by votes
+    const newIdByVotes = idByVotes(project!.total_votes, project!.id);
+    if (project!.status == fund.project_status.active) {
+      this.activeProjects.remove(oldIdByVotes);
+      this.activeProjects.put(newIdByVotes, new fund.existence());
+    } else {
+      this.upcomingProjects.remove(oldIdByVotes);
+      this.upcomingProjects.put(newIdByVotes, new fund.existence());
+    }
+
+    System.event(
+      "fund.update_vote_arguments",
+      Protobuf.encode(
+        args,
+        fund.update_vote_arguments.encode
+      ),
+      [args.voter!]
+    );
+
+    return new fund.update_vote_result();
   }
-  */
 }

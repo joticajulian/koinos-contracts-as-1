@@ -5,6 +5,7 @@ package fund;
 message global_vars {
   uint64 fee = 1;
   uint32 total_projects = 2;
+  repeated uint64 expiration_time = 3;
 }
 
 message submit_project_arguments {
@@ -21,6 +22,12 @@ message submit_project_arguments {
 message submit_project_result {
 }
 
+enum project_status {
+  upcoming = 0;
+  active = 1;
+  past = 2;
+}
+
 message project {
   uint32 id = 1;
   bytes creator = 2;
@@ -30,13 +37,30 @@ message project {
   uint64 monthly_payment = 6;
   uint64 starting_date = 7;
   uint64 ending_date = 8;
-  repeated uint64 votes = 9;
+  project_status status = 9;
+  uint64 total_votes = 10;
+  repeated uint64 votes = 11;
 }
 
 message existence {
 }
 
+message vote_info {
+  uint64 expiration = 1;
+  uint32 weight = 2;
+}
+
 message set_votes_koinos_fund_arguments {
   bytes account = 1;
   bool votes_koinos_fund = 2;
+}
+
+message update_vote_arguments {
+  bytes voter = 1;
+  uint32 project_id = 2;
+  bool vote = 3;
+  uint32 weight = 4;
+}
+
+message update_vote_result {
 }
