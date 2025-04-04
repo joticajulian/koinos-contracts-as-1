@@ -6,6 +6,7 @@ message global_vars {
   uint64 fee = 1;
   uint32 total_projects = 2;
   repeated uint64 expiration_time = 3;
+  uint64 remaining_balance = 4;
 }
 
 message submit_project_arguments {

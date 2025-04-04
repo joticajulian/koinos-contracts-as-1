@@ -6,11 +6,13 @@ import { fund } from "./proto/fund";
 
 const GLOBAL_VARS_SPACE_ID = 0;
 const PROJECTS_SPACE_ID = 1;
-const ACTIVE_PROJECTS_SPACE_ID = 2;
-const UPCOMING_PROJECTS_SPACE_ID = 3;
-const PAST_PROJECTS_SPACE_ID = 4;
-const PROJECTS_BY_VOTER_SPACE_ID = 5;
-const WEIGHTS_BY_VOTER_SPACE_ID = 6;
+const ACTIVE_PROJECTS_BY_VOTES_SPACE_ID = 2;
+const ACTIVE_PROJECTS_BY_DATE_SPACE_ID = 3;
+const UPCOMING_PROJECTS_BY_VOTES_SPACE_ID = 4;
+const UPCOMING_PROJECTS_BY_DATE_SPACE_ID = 5;
+const PAST_PROJECTS_BY_DATE_SPACE_ID = 6;
+const PROJECTS_BY_VOTER_SPACE_ID = 7;
+const WEIGHTS_BY_VOTER_SPACE_ID = 8;
 
 /**
  * idByVotes helps to order projects by number of votes.
@@ -20,6 +22,10 @@ const WEIGHTS_BY_VOTER_SPACE_ID = 6;
  */
 function idByVotes(votes: u64, projectId: u32): string {
   return `${votes}`.padStart(17, "0") + `${1e6 - projectId}`.padStart(6, "0");
+}
+
+function idByDate(date: u64, projectId: u32): string {
+  return `${date}` + `${projectId}`.padStart(6, "0");
 }
 
 class Token {
@@ -96,27 +102,45 @@ export class Fund {
     true
   );
 
-  activeProjects: Storage.Map< string, fund.existence > = new Storage.Map(
+  activeProjectsByVotes: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    ACTIVE_PROJECTS_SPACE_ID,
+    ACTIVE_PROJECTS_BY_VOTES_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
     true
   );
 
-  upcomingProjects: Storage.Map< string, fund.existence > = new Storage.Map(
+  activeProjectsByDate: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    UPCOMING_PROJECTS_SPACE_ID,
+    ACTIVE_PROJECTS_BY_DATE_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
     true
   );
 
-  pastProjects: Storage.Map< string, fund.existence > = new Storage.Map(
+  upcomingProjectsByVotes: Storage.Map< string, fund.existence > = new Storage.Map(
     this.contractId,
-    PAST_PROJECTS_SPACE_ID,
+    UPCOMING_PROJECTS_BY_VOTES_SPACE_ID,
+    fund.existence.decode,
+    fund.existence.encode,
+    null,
+    true
+  );
+
+  upcomingProjectsByDate: Storage.Map< string, fund.existence > = new Storage.Map(
+    this.contractId,
+    UPCOMING_PROJECTS_BY_DATE_SPACE_ID,
+    fund.existence.decode,
+    fund.existence.encode,
+    null,
+    true
+  );
+
+  pastProjectsByDate: Storage.Map< string, fund.existence > = new Storage.Map(
+    this.contractId,
+    PAST_PROJECTS_BY_DATE_SPACE_ID,
     fund.existence.decode,
     fund.existence.encode,
     null,
@@ -148,6 +172,7 @@ export class Fund {
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
     System.require(args.fee >= globalVars!.fee, `the fee must be at least ${globalVars!.fee}`);
+    System.require(args.beneficiary != null, "beneficiary must be defined");
     const koinToken = new Token(System.getContractAddress("koin"));
     koinToken.transfer(args.creator!, this.contractId, args.fee);
 
@@ -170,9 +195,11 @@ export class Fund {
     );
 
     if (now < args.starting_date) {
-      this.upcomingProjects.put(idByVotes(0, id), new fund.existence());
+      this.upcomingProjectsByVotes.put(idByVotes(0, id), new fund.existence());
+      this.upcomingProjectsByDate.put(idByDate(args.starting_date, id), new fund.existence());
     } else {
-      this.activeProjects.put(idByVotes(0, id), new fund.existence());
+      this.activeProjectsByVotes.put(idByVotes(0, id), new fund.existence());
+      this.activeProjectsByDate.put(idByDate(args.ending_date, id), new fund.existence());
       project.status = fund.project_status.active;
     }
     this.projects.put(`${id}`, project);
@@ -304,11 +331,11 @@ export class Fund {
     // reorder project in the list ordered by votes
     const newIdByVotes = idByVotes(project!.total_votes, project!.id);
     if (project!.status == fund.project_status.active) {
-      this.activeProjects.remove(oldIdByVotes);
-      this.activeProjects.put(newIdByVotes, new fund.existence());
+      this.activeProjectsByVotes.remove(oldIdByVotes);
+      this.activeProjectsByVotes.put(newIdByVotes, new fund.existence());
     } else {
-      this.upcomingProjects.remove(oldIdByVotes);
-      this.upcomingProjects.put(newIdByVotes, new fund.existence());
+      this.upcomingProjectsByVotes.remove(oldIdByVotes);
+      this.upcomingProjectsByVotes.put(newIdByVotes, new fund.existence());
     }
 
     System.event(
@@ -321,5 +348,81 @@ export class Fund {
     );
 
     return new fund.update_vote_result();
+  }
+
+  pay_projects(): void {
+    System.require(System.getCaller().caller_privilege == chain.privilege.kernel_mode, "payments must be called from kernel");
+    const now = System.getHeadInfo().head_block_time;
+    const globalVars = this.globalVars.get();
+    System.require(globalVars, "fund contract not configured");
+    const koinToken = new Token(System.getContractAddress("koin"));
+    const balance = koinToken.balance_of(this.contractId);
+    let budget = 2 * (balance - globalVars!.remaining_balance);
+    if (budget > balance) budget = balance;
+    let budgetExecuted = 0;
+
+    // move projects from upcoming to active
+    while (true) {
+      const upcoming = this.upcomingProjectsByDate.getNext("");
+      if (!upcoming) break;
+      const startingDate = u64.parse(StringBytes.bytesToString(upcoming.key!.slice(0, 13)));
+      if (now < startingDate) break;
+
+      // update project status
+      const project = this.projects.get(StringBytes.bytesToString(upcoming.key!.slice(13)));
+      project!.status = fund.project_status.active;
+      this.projects.put(`${project!.id}`, project!);
+
+      // remove from upcoming projects
+      this.upcomingProjectsByVotes.remove(idByVotes(project!.total_votes, project!.id));
+      this.upcomingProjectsByDate.remove(StringBytes.bytesToString(upcoming.key!));
+
+      // add to active projects
+      this.activeProjectsByVotes.put(idByVotes(project!.total_votes, project!.id), new fund.existence());
+      this.activeProjectsByDate.put(idByDate(project!.ending_date, project!.id), new fund.existence());
+    }
+
+    // move projects from active to past
+    while (true) {
+      const active = this.activeProjectsByDate.getNext("");
+      if (!active) break;
+      const endingDate = u64.parse(StringBytes.bytesToString(active.key!.slice(0, 13)));
+      if (now < endingDate) break;
+
+      // update project status
+      const project = this.projects.get(StringBytes.bytesToString(active.key!.slice(13)));
+      project!.status = fund.project_status.past;
+      this.projects.put(`${project!.id}`, project!);
+
+      // remove from active projects
+      this.activeProjectsByVotes.remove(idByVotes(project!.total_votes, project!.id));
+      this.activeProjectsByDate.remove(StringBytes.bytesToString(active.key!));
+
+      // add to past projects
+      this.pastProjectsByDate.put(StringBytes.bytesToString(active.key!), new fund.existence());
+    }
+
+    // get projects to pay
+    while (budget > 0) {
+      const active = this.activeProjectsByVotes.getPrev(idByVotes(U64.MAX_VALUE, 0));
+      if (!active) break;
+      const projectId = 1e6 - u32.parse(StringBytes.bytesToString(active.key!.slice(17)));
+      const project = this.projects.get(`${projectId}`);
+      const payment = project!.monthly_payment > budget
+        ? budget
+        : project!.monthly_payment;
+      budget -= payment;
+      if (!Arrays.equal(project!.beneficiary, this.contractId)) {
+        // transfer to beneficiary
+        koinToken.transfer(this.contractId, project!.beneficiary!, payment);
+        budgetExecuted += payment;
+      }
+    }
+
+    // todo: update expiration times
+    // todo: get all active projects and upcoming projects and rotate the votes (expiration)
+
+    globalVars!.remaining_balance = balance - budgetExecuted;
+    this.globalVars.put(globalVars!);
   }
 }
