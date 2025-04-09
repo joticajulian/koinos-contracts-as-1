@@ -165,16 +165,31 @@ export class Fund {
     true
   );
 
+  set_global_vars(args: fund.set_global_vars_arguments): void {
+    System.require(System.checkSystemAuthority(), "not authorized by the system");
+    let globalVars = this.globalVars.get();
+    if (!globalVars) globalVars = new fund.global_vars();
+    globalVars.fee_denominator = args.fee_denominator;
+    globalVars.payment_times = args.payment_times;
+    this.globalVars.put(globalVars);
+  }
+
+  get_global_vars(): fund.global_vars {
+    const globalVars = this.globalVars.get();
+    System.require(globalVars, "fund contract not configured");
+    return globalVars!;
+  }
+
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
     const now = System.getHeadInfo().head_block_time;
     System.require(args.starting_date < args.ending_date, "starting date must be before ending date");
     System.require(now < args.ending_date, "ending date must be in the future");
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
-    // todo: fee should be variable. With more projects, the fee should be higher
-    // proposal: fee = P0 * ( total active and upcoming projects ) ^ 3 * time requested
-    // check if it's better to create a single large project instead of 2 with half the time
-    System.require(args.fee >= globalVars!.fee, `the fee must be at least ${globalVars!.fee}`);
+    const p: u64 = globalVars!.total_active_projects + globalVars!.total_upcoming_projects + 1;
+    const t = args.ending_date - args.starting_date;
+    const expectedFee = p * p * p * ( t / globalVars!.fee_denominator );
+    System.require(args.fee >= expectedFee, `the fee must be at least ${expectedFee}`);
     System.require(args.beneficiary != null, "beneficiary must be defined");
     const koinToken = new Token(System.getContractAddress("koin"));
     koinToken.transfer(args.creator!, this.contractId, args.fee);
@@ -200,9 +215,11 @@ export class Fund {
     if (now < args.starting_date) {
       this.upcomingProjectsByVotes.put(idByVotes(0, id), new fund.existence());
       this.upcomingProjectsByDate.put(idByDate(args.starting_date, id), new fund.existence());
+      globalVars!.total_upcoming_projects += 1;
     } else {
       this.activeProjectsByVotes.put(idByVotes(0, id), new fund.existence());
       this.activeProjectsByDate.put(idByDate(args.ending_date, id), new fund.existence());
+      globalVars!.total_active_projects += 1;
       project.status = fund.project_status.active;
     }
     this.projects.put(`${id}`, project);
@@ -379,10 +396,12 @@ export class Fund {
       // remove from upcoming projects
       this.upcomingProjectsByVotes.remove(idByVotes(project!.total_votes, project!.id));
       this.upcomingProjectsByDate.remove(StringBytes.bytesToString(upcoming.key!));
+      globalVars!.total_upcoming_projects -= 1;
 
       // add to active projects
       this.activeProjectsByVotes.put(idByVotes(project!.total_votes, project!.id), new fund.existence());
       this.activeProjectsByDate.put(idByDate(project!.ending_date, project!.id), new fund.existence());
+      globalVars!.total_active_projects += 1;
     }
 
     // move projects from active to past
@@ -400,6 +419,7 @@ export class Fund {
       // remove from active projects
       this.activeProjectsByVotes.remove(idByVotes(project!.total_votes, project!.id));
       this.activeProjectsByDate.remove(StringBytes.bytesToString(active.key!));
+      globalVars!.total_active_projects -= 1;
 
       // add to past projects
       this.pastProjectsByDate.put(StringBytes.bytesToString(active.key!), new fund.existence());

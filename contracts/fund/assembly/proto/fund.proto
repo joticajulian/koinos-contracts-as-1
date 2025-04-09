@@ -3,10 +3,37 @@ syntax = "proto3";
 package fund;
 
 message global_vars {
-  uint64 fee = 1;
+  // fee is calculated as: Fee = (K+1)^3 * T / fee_denominator
+  // where K is the total active and upcoming projects
+  // and T is the duration of the project (in milliseconds).
+  //
+  // This design is necessary because the function
+  // to pay projects has loops that makes updates in all active
+  // and upcoming projects, so this number cannot be large to avoid
+  // excessive computing times.
+  //
+  // As the number of active and upcoming projects increases
+  // new projects are penalized with higher fees.
+  // The duration of the project also impacts in the computation
+  // then the fee increases proportional to the duration.
+  //
+  // As an example, with fee_denominator = 10000, a new project
+  // with a duration of 1 year, will have to pay:
+  // fee = 6.8 KOIN if active + upcoming projects = 5
+  // fee = 292 KOIN if active + upcoming projects = 20
+  // fee = 4183 KOIN if active + upcoming projects = 50
+  // fee = 32491 KOIN if active + upcoming projects = 100
+  uint64 fee_denominator = 1;
   uint32 total_projects = 2;
-  repeated uint64 payment_times = 3;
-  uint64 remaining_balance = 4;
+  uint32 total_upcoming_projects = 3;
+  uint32 total_active_projects = 4;
+  repeated uint64 payment_times = 5;
+  uint64 remaining_balance = 6;
+}
+
+message set_global_vars_arguments {
+  uint64 fee_denominator = 1;
+  repeated uint64 payment_times = 2;
 }
 
 message submit_project_arguments {
