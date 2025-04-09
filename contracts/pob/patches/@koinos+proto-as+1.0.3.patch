@@ -7,9 +7,9 @@ index 13100e9..dba8133 100644
          writer.uint64(message.last_block_time);
        }
 +
-+      if (message.last_fund_execution != 0) {
++      if (message.next_koinos_fund_payment_time != 0) {
 +        writer.uint32(32);
-+        writer.uint64(message.last_fund_execution);
++        writer.uint64(message.next_koinos_fund_payment_time);
 +      }
      }
  
@@ -19,7 +19,7 @@ index 13100e9..dba8133 100644
              break;
  
 +          case 4:
-+            message.last_fund_execution = reader.uint64();
++            message.next_koinos_fund_payment_time = reader.uint64();
 +            break;
 +
            default:
@@ -29,19 +29,19 @@ index 13100e9..dba8133 100644
      seed: Uint8Array;
      difficulty: Uint8Array;
      last_block_time: u64;
-+    last_fund_execution: u64;
++    next_koinos_fund_payment_time: u64;
  
      constructor(
        seed: Uint8Array = new Uint8Array(0),
        difficulty: Uint8Array = new Uint8Array(0),
 -      last_block_time: u64 = 0
 +      last_block_time: u64 = 0,
-+      last_fund_execution: u64 = 0
++      next_koinos_fund_payment_time: u64 = 0
      ) {
        this.seed = seed;
        this.difficulty = difficulty;
        this.last_block_time = last_block_time;
-+      this.last_fund_execution = last_fund_execution;
++      this.next_koinos_fund_payment_time = next_koinos_fund_payment_time;
      }
    }
  

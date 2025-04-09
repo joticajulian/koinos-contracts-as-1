@@ -171,6 +171,9 @@ export class Fund {
     System.require(now < args.ending_date, "ending date must be in the future");
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
+    // todo: fee should be variable. With more projects, the fee should be higher
+    // proposal: fee = P0 * ( total active and upcoming projects ) ^ 3 * time requested
+    // check if it's better to create a single large project instead of 2 with half the time
     System.require(args.fee >= globalVars!.fee, `the fee must be at least ${globalVars!.fee}`);
     System.require(args.beneficiary != null, "beneficiary must be defined");
     const koinToken = new Token(System.getContractAddress("koin"));
@@ -291,7 +294,7 @@ export class Fund {
       // only remove it if it has not expired
       const previousVoteWeight = vote.weight * (koinBalance + vhpBalance);
       for (let i = 0; i < 6; i += 1) {
-        if (globalVars!.expiration_time[i] == vote.expiration) {
+        if (globalVars!.payment_times[i] == vote.expiration) {
           // there are 6 expiration times, remove it from the corresponding period
           project!.votes[i] -= previousVoteWeight;
           project!.total_votes -= previousVoteWeight;
@@ -315,7 +318,7 @@ export class Fund {
 
     if (args.weight > 0) {
       // update user vote and expiration time (most distant expiration)
-      vote = new fund.vote_info(globalVars!.expiration_time[5], args.weight);
+      vote = new fund.vote_info(globalVars!.payment_times[5], args.weight);
       this.projectsByVoter.put(keyByVoter, vote);
     } else {
       // remove vote
@@ -350,7 +353,7 @@ export class Fund {
     return new fund.update_vote_result();
   }
 
-  pay_projects(): void {
+  pay_projects(): fund.pay_projects_result {
     System.require(System.getCaller().caller_privilege == chain.privilege.kernel_mode, "payments must be called from kernel");
     const now = System.getHeadInfo().head_block_time;
     const globalVars = this.globalVars.get();
@@ -403,8 +406,9 @@ export class Fund {
     }
 
     // get projects to pay
+    let nextId = idByVotes(U64.MAX_VALUE, 0);
     while (budget > 0) {
-      const active = this.activeProjectsByVotes.getPrev(idByVotes(U64.MAX_VALUE, 0));
+      const active = this.activeProjectsByVotes.getPrev(nextId);
       if (!active) break;
       const projectId = 1e6 - u32.parse(StringBytes.bytesToString(active.key!.slice(17)));
       const project = this.projects.get(`${projectId}`);
@@ -417,12 +421,59 @@ export class Fund {
         koinToken.transfer(this.contractId, project!.beneficiary!, payment);
         budgetExecuted += payment;
       }
+      nextId = StringBytes.bytesToString(active.key!);
+    }
+    globalVars!.remaining_balance = balance - budgetExecuted;
+
+    // rotate votes for upcoming projects
+    nextId = "";
+    while (true) {
+      const upcoming = this.upcomingProjectsByDate.getNext(nextId);
+      if (!upcoming) break;
+      const projectId = u32.parse(StringBytes.bytesToString(upcoming.key!.slice(13)));
+      const project = this.projects.get(`${projectId}`);
+      // move votes 1 position and remove old votes
+      const oldVotes = project!.votes.shift();
+      // the furthest votes from expiring are zero
+      project!.votes.push(0);
+      project!.total_votes -= oldVotes!;
+      this.projects.put(`${projectId}`, project!);
+      nextId = StringBytes.bytesToString(upcoming.key!);
     }
 
-    // todo: update expiration times
-    // todo: get all active projects and upcoming projects and rotate the votes (expiration)
+    // rotate votes for active projects
+    nextId = "";
+    while (true) {
+      const active = this.activeProjectsByDate.getNext(nextId);
+      if (!active) break;
+      const projectId = u32.parse(StringBytes.bytesToString(active.key!.slice(13)));
+      const project = this.projects.get(`${projectId}`);
+      // move votes 1 position and remove old votes
+      const oldVotes = project!.votes.shift();
+      // the furthest votes from expiring are zero
+      project!.votes.push(0);
+      project!.total_votes -= oldVotes!;
+      this.projects.put(`${projectId}`, project!);
+      nextId = StringBytes.bytesToString(active.key!);
+    }
 
-    globalVars!.remaining_balance = balance - budgetExecuted;
+    // Calculate last day of the month (at noon) 6 months from now
+    const date = new Date(i64(now));
+    let year = date.getUTCFullYear();
+    let month = date.getUTCMonth();
+    month += 7;
+    if (month > 11) {
+      month -= 12;
+      year += 1;
+    }
+    const newPaymentTime = Date.UTC(year, month, 1, 0, 0, 0, 0) - 12 * 60 * 60 * 1000;
+
+    // rotate the 6 payment times: Remove the current one and create the new one
+    globalVars!.payment_times.shift();
+    globalVars!.payment_times.push(newPaymentTime);
     this.globalVars.put(globalVars!);
+
+    // return the next payment time
+    return new fund.pay_projects_result(globalVars!.payment_times[0]);
   }
 }

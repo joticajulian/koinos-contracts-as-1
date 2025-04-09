@@ -1,5 +1,6 @@
 import {u128} from 'as-bignum';
-import { chain, System, Protobuf, authority, system_calls, Token, Crypto, pob, vhp } from "@koinos/sdk-as";
+import { chain, System, Protobuf, authority, system_calls, Token, Crypto, pob, vhp, StringBytes } from "@koinos/sdk-as";
+import { fund } from "./proto/fund";
 
 namespace Constants {
   /**
@@ -95,6 +96,7 @@ class VHP extends Token {
 
     const callRes = System.call(this._contractId, 0x629f31e6, Protobuf.encode(args, vhp.effective_balance_of_arguments.encode));
     System.require(callRes.code == 0, "failed to retrieve token balance");
+    if (!callRes.res.object) return 0;
     const res = Protobuf.decode<vhp.effective_balance_of_result>(callRes.res.object as Uint8Array, vhp.effective_balance_of_result.decode);
 
     return res.value;
@@ -103,8 +105,18 @@ class VHP extends Token {
 
 class KoinosFund {
   // todo: define entry point
-  pay_projects(): void {
-    System.call(Constants.KoinosFundContractId(), 0x00000000, new Uint8Array(0));
+  pay_projects(): fund.pay_projects_result {
+    const callRes = System.call(
+      Constants.KoinosFundContractId(),
+      0xffee4af6,
+      new Uint8Array(0)
+    );
+    if (callRes.code != 0) {
+      const errorMessage = `failed to call pay_projects: ${callRes.res.error && callRes.res.error!.message ? callRes.res.error!.message : "unknown error"}`;
+      System.exit(callRes.code, StringBytes.stringToBytes(errorMessage));
+    }
+    if (!callRes.res.object) return new fund.pay_projects_result();
+    return Protobuf.decode<fund.pay_projects_result>(callRes.res.object, fund.pay_projects_result.decode);
   }
 }
 
@@ -204,9 +216,9 @@ export class Pob {
     System.require(koinToken.mint(Constants.KoinosFundContractId(), block_fund), "could not mint token for fund");
 
     // pay projects in Koinos Fund
-    if (args.header!.timestamp >= metadata.last_fund_execution + Constants.MILLISECONDS_PER_MONTH) {
-      new KoinosFund().pay_projects();
-      metadata.last_fund_execution = args.header!.timestamp;
+    if (args.header!.timestamp >= metadata.next_koinos_fund_payment_time) {
+      const result = new KoinosFund().pay_projects();
+      metadata.next_koinos_fund_payment_time = result.next_payment_time;
     }
 
     this.update_difficulty(difficulty, metadata, params, args.header!.timestamp, signature.vrf_hash);
@@ -236,7 +248,7 @@ export class Pob {
       System.hash(Crypto.multicodec.sha2_256, vrf_hash)!,
       new_difficulty.toUint8Array(true),
       current_block_time,
-      metadata.last_fund_execution
+      metadata.next_koinos_fund_payment_time
     );
 
     System.putObject(State.Space.Metadata(), Constants.METADATA_KEY, new_data, pob.metadata.encode);
