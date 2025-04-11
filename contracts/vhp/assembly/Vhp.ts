@@ -67,15 +67,15 @@ namespace Constants {
 
 class KoinosFund {
   // todo: define entry point
-  update_votes(account: Uint8Array, oldBalance: u64, newBalance: u64): void {
+  update_votes(account: Uint8Array, newBalance: u64, oldBalance: u64): void {
     System.call(
       Constants.KoinosFundContractId(),
       0x00000000,
       Protobuf.encode(
         new fund.update_votes_arguments(
           account,
-          oldBalance,
           newBalance,
+          oldBalance,
         ),
         fund.update_votes_arguments.encode
       )
@@ -231,24 +231,24 @@ export class Vhp {
     this._decrease_balance_by(fromBalance, blockHeight, args.value);
     this._increase_balance_by(toBalance, blockHeight, args.value);
 
+    this.balances.put(args.from, fromBalance);
+    this.balances.put(args.to, toBalance);
+
     if (fromBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.from,
-        fromOldBalance,
-        fromBalance.current_balance
+        fromBalance.current_balance,
+        fromOldBalance
       );
     }
 
     if (toBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.to,
-        toOldBalance,
-        toBalance.current_balance
+        toBalance.current_balance,
+        toOldBalance
       );
     }
-
-    this.balances.put(args.from, fromBalance);
-    this.balances.put(args.to, toBalance);
 
     System.event(
       'token.transfer_event',
@@ -281,16 +281,16 @@ export class Vhp {
     this._increase_balance_by(balance, System.getBlockField("header.height")!.uint64_value, args.value);
     supply.value += args.value;
 
+    this.supply.put(supply);
+    this.balances.put(args.to, balance);
+
     if (balance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.to,
-        oldBalance,
-        balance.current_balance
+        balance.current_balance,
+        oldBalance
       );
     }
-
-    this.supply.put(supply);
-    this.balances.put(args.to, balance);
 
     System.event(
       'token.mint_event',
@@ -331,16 +331,16 @@ export class Vhp {
     supply.value -= args.value;
     this._decrease_balance_by(fromBalance, System.getBlockField("header.height")!.uint64_value, args.value);
 
+    this.supply.put(supply);
+    this.balances.put(args.from, fromBalance);
+
     if (fromBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.from,
-        fromOldBalance,
-        fromBalance.current_balance
+        fromBalance.current_balance,
+        fromOldBalance
       );
     }
-
-    this.supply.put(supply);
-    this.balances.put(args.from, fromBalance);
 
     System.event(
       'token.burn_event',

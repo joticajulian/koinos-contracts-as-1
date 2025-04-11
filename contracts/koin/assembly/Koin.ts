@@ -45,15 +45,15 @@ namespace Constants {
 
 class KoinosFund {
   // todo: define entry point
-  update_votes(account: Uint8Array, oldBalance: u64, newBalance: u64): void {
+  update_votes(account: Uint8Array, newBalance: u64, oldBalance: u64): void {
     System.call(
       Constants.KoinosFundContractId(),
       0x00000000,
       Protobuf.encode(
         new fund.update_votes_arguments(
           account,
-          oldBalance,
           newBalance,
+          oldBalance,
         ),
         fund.update_votes_arguments.encode
       )
@@ -215,24 +215,24 @@ export class Koin {
     toBalance.balance += args.value;
     toBalance.mana += args.value;
 
+    this.balances.put(args.from, fromBalance);
+    this.balances.put(args.to, toBalance);
+
     if (fromBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.from,
-        fromOldBalance,
-        fromBalance.balance
+        fromBalance.balance,
+        fromOldBalance
       );
     }
 
     if (toBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.to,
-        toOldBalance,
-        toBalance.balance
+        toBalance.balance,
+        toOldBalance
       );
     }
-
-    this.balances.put(args.from, fromBalance);
-    this.balances.put(args.to, toBalance);
 
     System.event(
       'token.transfer_event',
@@ -267,16 +267,16 @@ export class Koin {
     balance.balance += args.value;
     balance.mana += args.value;
 
+    this.supply.put(supply);
+    this.balances.put(args.to, balance);
+
     if (balance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.to,
-        oldBalance,
-        balance.balance
+        balance.balance,
+        oldBalance
       );
     }
-
-    this.supply.put(supply);
-    this.balances.put(args.to, balance);
 
     System.event(
       'token.mint_event',
@@ -310,16 +310,16 @@ export class Koin {
     fromBalance.balance -= args.value;
     fromBalance.mana -= args.value;
 
+    this.supply.put(supply);
+    this.balances.put(args.from, fromBalance);
+
     if (fromBalance.votes_koinos_fund) {
       new KoinosFund().update_votes(
         args.from,
-        fromOldBalance,
-        fromBalance.balance
+        fromBalance.balance,
+        fromOldBalance
       );
     }
-
-    this.supply.put(supply);
-    this.balances.put(args.from, fromBalance);
 
     System.event(
       'token.burn_event',

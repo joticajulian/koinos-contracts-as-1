@@ -370,6 +370,81 @@ export class Fund {
     return new fund.update_vote_result();
   }
 
+  update_votes(args: fund.update_votes_arguments): void {
+    const caller = System.getCaller();
+    System.require(caller, "caller of update votes must be KOIN or VHP contract");
+
+    const globalVars = this.globalVars.get();
+    System.require(globalVars, "fund contract not configured");
+
+    const koinAddress = System.getContractAddress("koin");
+    const vhpAddress = System.getContractAddress("vhp");
+    System.require(caller.caller != koinAddress && caller.caller != vhpAddress, "caller of update votes must be KOIN or VHP contract");
+
+    const koinContract = new Token(koinAddress);
+    const vhpContract = new Token(vhpAddress);
+
+    let keyByVoter = new Uint8Array(31);
+    keyByVoter.set(args.voter!);
+
+    // get weights used by the user
+    const weight = this.weights.get(args.voter!)!;
+
+    while (true) {
+      const voteRecord = this.projectsByVoter.getNext(keyByVoter);
+      if (!voteRecord) break;
+
+      keyByVoter = voteRecord.key!;
+      if (!Arrays.equal(keyByVoter.slice(0, 25), args.voter!)) break;
+
+      const vote = voteRecord.value;
+
+      const projectId = u32.parse(StringBytes.bytesToString(keyByVoter.slice(25)));
+      const project = this.projects.get(`${projectId}`);
+
+      if (project!.status == fund.project_status.past) {
+        // remove vote from the list of user votes
+        this.projectsByVoter.remove(keyByVoter);
+
+        // remove vote from the weights used by the user
+        weight.weight -= vote.weight;
+        if (weight.weight > 0) {
+          this.weights.put(args.voter!, weight);
+        } else {
+          this.weights.remove(args.voter!);
+          // no votes from the user, notify KOIN and VHP contracts
+          // to avoid calling the koinos fund contract when there
+          // are new updates in the balances
+          koinContract.set_votes_koinos_fund(args.voter!, false);
+          vhpContract.set_votes_koinos_fund(args.voter!, false);
+        }
+      } else {
+        // get ID of the project in the list ordered by votes
+        const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
+
+        const deltaVoteWeight = vote.weight * (args.new_balance - args.old_balance);
+        for (let i = 0; i < 6; i += 1) {
+          if (globalVars!.payment_times[i] == vote.expiration) {
+            // there are 6 expiration times, update the corresponding period
+            project!.votes[i] += deltaVoteWeight;
+            project!.total_votes += deltaVoteWeight;
+          }
+        }
+        this.projects.put(`${projectId}`, project!);
+
+        // reorder project in the list ordered by votes
+        const newIdByVotes = idByVotes(project!.total_votes, project!.id);
+        if (project!.status == fund.project_status.active) {
+          this.activeProjectsByVotes.remove(oldIdByVotes);
+          this.activeProjectsByVotes.put(newIdByVotes, new fund.existence());
+        } else {
+          this.upcomingProjectsByVotes.remove(oldIdByVotes);
+          this.upcomingProjectsByVotes.put(newIdByVotes, new fund.existence());
+        }
+      }
+    }
+  }
+
   pay_projects(): fund.pay_projects_result {
     System.require(System.getCaller().caller_privilege == chain.privilege.kernel_mode, "payments must be called from kernel");
     const now = System.getHeadInfo().head_block_time;
@@ -379,7 +454,7 @@ export class Fund {
     const balance = koinToken.balance_of(this.contractId);
     let budget = 2 * (balance - globalVars!.remaining_balance);
     if (budget > balance) budget = balance;
-    let budgetExecuted = 0;
+    let budgetExecuted: u64 = 0;
 
     // move projects from upcoming to active
     while (true) {
@@ -456,7 +531,7 @@ export class Fund {
       const oldVotes = project!.votes.shift();
       // the furthest votes from expiring are zero
       project!.votes.push(0);
-      project!.total_votes -= oldVotes!;
+      project!.total_votes -= oldVotes;
       this.projects.put(`${projectId}`, project!);
       nextId = StringBytes.bytesToString(upcoming.key!);
     }
@@ -472,7 +547,7 @@ export class Fund {
       const oldVotes = project!.votes.shift();
       // the furthest votes from expiring are zero
       project!.votes.push(0);
-      project!.total_votes -= oldVotes!;
+      project!.total_votes -= oldVotes;
       this.projects.put(`${projectId}`, project!);
       nextId = StringBytes.bytesToString(active.key!);
     }

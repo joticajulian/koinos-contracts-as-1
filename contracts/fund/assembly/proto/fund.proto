@@ -95,3 +95,9 @@ message update_vote_result {
 message pay_projects_result {
   uint64 next_payment_time = 1;
 }
+
+message update_votes_arguments {
+  bytes voter = 1;
+  uint64 new_balance = 2;
+  uint64 old_balance = 3;
+}
