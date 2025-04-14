@@ -180,6 +180,52 @@ export class Fund {
     return globalVars!;
   }
 
+  get_project(args: fund.get_project_arguments): fund.project {
+    const project = this.projects.get(`${args.project_id}`);
+    if (!project) System.fail("project not found");
+    return project!;
+  }
+
+  get_projects(args: fund.get_projects_arguments): fund.get_projects_result {
+    const result = new fund.get_projects_result();
+
+    let projectsOrdered: Storage.Map< string, fund.existence >;
+    if (args.order_by == fund.order_projects_by.by_date) {
+      if (args.status == fund.project_status.upcoming) {
+        projectsOrdered = this.upcomingProjectsByDate;
+      } else if (args.status == fund.project_status.active) {
+        projectsOrdered = this.activeProjectsByDate;
+      } else {
+        projectsOrdered = this.pastProjectsByDate;
+      }
+    } else {
+      if (args.status == fund.project_status.upcoming) {
+        projectsOrdered = this.upcomingProjectsByVotes;
+      } else if (args.status == fund.project_status.active) {
+        projectsOrdered = this.activeProjectsByVotes;
+      } else {
+        System.fail("past projects are not ordered by votes");
+        return result;
+      }
+    }
+
+    let key = args.start ? args.start : "";
+    for (let i = 0; i < args.limit; i += 1) {
+      const nextProjectId = args.descending
+        ? projectsOrdered.getPrev(key!)
+        : projectsOrdered.getNext(key!);
+      if (!nextProjectId) break;
+      const projectId = args.order_by == fund.order_projects_by.by_date
+        ? u32.parse(StringBytes.bytesToString(nextProjectId.key!.slice(13)))
+        : 1e6 - u32.parse(StringBytes.bytesToString(nextProjectId.key!.slice(17)))
+      const project = this.projects.get(`${projectId}`);
+      if (project) result.projects.push(project);
+      key = StringBytes.bytesToString(nextProjectId.key!);
+    }
+    result.start_next_page = key;
+    return result;
+  }
+
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
     const now = System.getHeadInfo().head_block_time;
     System.require(args.starting_date < args.ending_date, "starting date must be before ending date");

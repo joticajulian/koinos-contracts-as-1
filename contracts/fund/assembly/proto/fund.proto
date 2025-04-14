@@ -101,3 +101,25 @@ message update_votes_arguments {
   uint64 new_balance = 2;
   uint64 old_balance = 3;
 }
+
+message get_project_arguments {
+  uint32 project_id = 1;
+}
+
+enum order_projects_by {
+  by_date = 0;
+  by_votes = 1;
+}
+
+message get_projects_arguments {
+  project_status status = 1;
+  order_projects_by order_by = 2;
+  string start = 3;
+  int32 limit = 4;
+  bool descending = 5;
+}
+
+message get_projects_result {
+  repeated project projects = 1;
+  string start_next_page = 2;
+}
