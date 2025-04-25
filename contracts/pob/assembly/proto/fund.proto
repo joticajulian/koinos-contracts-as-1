@@ -15,8 +15,8 @@ message submit_project_arguments {
   string title = 3;
   string description = 4;
   uint64 monthly_payment = 5;
-  uint64 starting_date = 6;
-  uint64 ending_date = 7;
+  uint64 start_date = 6;
+  uint64 end_date = 7;
   uint64 fee = 8;
 }
 
@@ -36,8 +36,8 @@ message project {
   string title = 4;
   string description = 5;
   uint64 monthly_payment = 6;
-  uint64 starting_date = 7;
-  uint64 ending_date = 8;
+  uint64 start_date = 7;
+  uint64 end_date = 8;
   project_status status = 9;
   uint64 total_votes = 10;
   repeated uint64 votes = 11;

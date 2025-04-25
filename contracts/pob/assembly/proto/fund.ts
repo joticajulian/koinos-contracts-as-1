@@ -108,14 +108,14 @@ export namespace fund {
         writer.uint64(message.monthly_payment);
       }
 
-      if (message.starting_date != 0) {
+      if (message.start_date != 0) {
         writer.uint32(48);
-        writer.uint64(message.starting_date);
+        writer.uint64(message.start_date);
       }
 
-      if (message.ending_date != 0) {
+      if (message.end_date != 0) {
         writer.uint32(56);
-        writer.uint64(message.ending_date);
+        writer.uint64(message.end_date);
       }
 
       if (message.fee != 0) {
@@ -152,11 +152,11 @@ export namespace fund {
             break;
 
           case 6:
-            message.starting_date = reader.uint64();
+            message.start_date = reader.uint64();
             break;
 
           case 7:
-            message.ending_date = reader.uint64();
+            message.end_date = reader.uint64();
             break;
 
           case 8:
@@ -177,8 +177,8 @@ export namespace fund {
     title: string | null;
     description: string | null;
     monthly_payment: u64;
-    starting_date: u64;
-    ending_date: u64;
+    start_date: u64;
+    end_date: u64;
     fee: u64;
 
     constructor(
@@ -187,8 +187,8 @@ export namespace fund {
       title: string | null = null,
       description: string | null = null,
       monthly_payment: u64 = 0,
-      starting_date: u64 = 0,
-      ending_date: u64 = 0,
+      start_date: u64 = 0,
+      end_date: u64 = 0,
       fee: u64 = 0
     ) {
       this.creator = creator;
@@ -196,8 +196,8 @@ export namespace fund {
       this.title = title;
       this.description = description;
       this.monthly_payment = monthly_payment;
-      this.starting_date = starting_date;
-      this.ending_date = ending_date;
+      this.start_date = start_date;
+      this.end_date = end_date;
       this.fee = fee;
     }
   }
@@ -261,14 +261,14 @@ export namespace fund {
         writer.uint64(message.monthly_payment);
       }
 
-      if (message.starting_date != 0) {
+      if (message.start_date != 0) {
         writer.uint32(56);
-        writer.uint64(message.starting_date);
+        writer.uint64(message.start_date);
       }
 
-      if (message.ending_date != 0) {
+      if (message.end_date != 0) {
         writer.uint32(64);
-        writer.uint64(message.ending_date);
+        writer.uint64(message.end_date);
       }
 
       if (message.status != 0) {
@@ -322,11 +322,11 @@ export namespace fund {
             break;
 
           case 7:
-            message.starting_date = reader.uint64();
+            message.start_date = reader.uint64();
             break;
 
           case 8:
-            message.ending_date = reader.uint64();
+            message.end_date = reader.uint64();
             break;
 
           case 9:
@@ -356,8 +356,8 @@ export namespace fund {
     title: string | null;
     description: string | null;
     monthly_payment: u64;
-    starting_date: u64;
-    ending_date: u64;
+    start_date: u64;
+    end_date: u64;
     status: project_status;
     total_votes: u64;
     votes: Array<u64>;
@@ -369,8 +369,8 @@ export namespace fund {
       title: string | null = null,
       description: string | null = null,
       monthly_payment: u64 = 0,
-      starting_date: u64 = 0,
-      ending_date: u64 = 0,
+      start_date: u64 = 0,
+      end_date: u64 = 0,
       status: project_status = 0,
       total_votes: u64 = 0,
       votes: Array<u64> = []
@@ -381,8 +381,8 @@ export namespace fund {
       this.title = title;
       this.description = description;
       this.monthly_payment = monthly_payment;
-      this.starting_date = starting_date;
-      this.ending_date = ending_date;
+      this.start_date = start_date;
+      this.end_date = end_date;
       this.status = status;
       this.total_votes = total_votes;
       this.votes = votes;

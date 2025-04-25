@@ -228,12 +228,12 @@ export class Fund {
 
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
     const now = System.getHeadInfo().head_block_time;
-    System.require(args.starting_date < args.ending_date, "starting date must be before ending date");
-    System.require(now < args.ending_date, "ending date must be in the future");
+    System.require(args.start_date < args.end_date, "starting date must be before ending date");
+    System.require(now < args.end_date, "ending date must be in the future");
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
     const p: u64 = globalVars!.total_active_projects + globalVars!.total_upcoming_projects + 1;
-    const t = args.ending_date - args.starting_date;
+    const t = args.end_date - args.start_date;
     const expectedFee = p * p * p * ( t / globalVars!.fee_denominator );
     System.require(args.fee >= expectedFee, `the fee must be at least ${expectedFee}`);
     System.require(args.beneficiary != null, "beneficiary must be defined");
@@ -251,24 +251,25 @@ export class Fund {
       args.title,
       args.description,
       args.monthly_payment,
-      args.starting_date,
-      args.ending_date,
+      args.start_date,
+      args.end_date,
       fund.project_status.upcoming,
       0,
       votes,
     );
 
-    if (now < args.starting_date) {
+    if (now < args.start_date) {
       this.upcomingProjectsByVotes.put(idByVotes(0, id), new fund.existence());
-      this.upcomingProjectsByDate.put(idByDate(args.starting_date, id), new fund.existence());
+      this.upcomingProjectsByDate.put(idByDate(args.start_date, id), new fund.existence());
       globalVars!.total_upcoming_projects += 1;
     } else {
       this.activeProjectsByVotes.put(idByVotes(0, id), new fund.existence());
-      this.activeProjectsByDate.put(idByDate(args.ending_date, id), new fund.existence());
+      this.activeProjectsByDate.put(idByDate(args.end_date, id), new fund.existence());
       globalVars!.total_active_projects += 1;
       project.status = fund.project_status.active;
     }
     this.projects.put(`${id}`, project);
+    this.globalVars.put(globalVars!);
 
     System.event(
       "fund.submit_project_arguments",
@@ -521,7 +522,7 @@ export class Fund {
 
       // add to active projects
       this.activeProjectsByVotes.put(idByVotes(project!.total_votes, project!.id), new fund.existence());
-      this.activeProjectsByDate.put(idByDate(project!.ending_date, project!.id), new fund.existence());
+      this.activeProjectsByDate.put(idByDate(project!.end_date, project!.id), new fund.existence());
       globalVars!.total_active_projects += 1;
     }
 
