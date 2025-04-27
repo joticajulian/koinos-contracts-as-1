@@ -21,7 +21,7 @@ const WEIGHTS_BY_VOTER_SPACE_ID = 8;
  * - project ID: 6 digits. Allow up to 1 million -1 projects.
  */
 function idByVotes(votes: u64, projectId: u32): string {
-  return `${votes}`.padStart(17, "0") + `${1e6 - projectId}`.padStart(6, "0");
+  return `${votes}`.padStart(17, "0") + `${u32(1e6) - projectId}`.padStart(6, "0");
 }
 
 function idByDate(date: u64, projectId: u32): string {
@@ -215,15 +215,19 @@ export class Fund {
         ? projectsOrdered.getPrev(key!)
         : projectsOrdered.getNext(key!);
       if (!nextProjectId) break;
-      const projectId = args.order_by == fund.order_projects_by.by_date
+      const projectId: u32 = args.order_by == fund.order_projects_by.by_date
         ? u32.parse(StringBytes.bytesToString(nextProjectId.key!.slice(13)))
-        : 1e6 - u32.parse(StringBytes.bytesToString(nextProjectId.key!.slice(17)))
+        : u32(1e6) - u32.parse(StringBytes.bytesToString(nextProjectId.key!.slice(17)));
       const project = this.projects.get(`${projectId}`);
       if (project) result.projects.push(project);
       key = StringBytes.bytesToString(nextProjectId.key!);
     }
     result.start_next_page = key;
     return result;
+  }
+
+  get_user_votes(): void {
+    // TODO
   }
 
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
@@ -368,7 +372,7 @@ export class Fund {
 
     // update weights used by the user
     weight.weight += args.weight;
-    System.require(weight.weight <= 20, `vote exceeded. ${100 - 5 * weight.weight}% votes available`);
+    System.require(weight.weight <= 20, `votes have exceeded 100% by ${5 * weight.weight - 100}%`);
     if (weight.weight > 0) {
       this.weights.put(args.voter!, weight);
     } else {
@@ -552,7 +556,7 @@ export class Fund {
     while (budget > 0) {
       const active = this.activeProjectsByVotes.getPrev(nextId);
       if (!active) break;
-      const projectId = 1e6 - u32.parse(StringBytes.bytesToString(active.key!.slice(17)));
+      const projectId = u32(1e6) - u32.parse(StringBytes.bytesToString(active.key!.slice(17)));
       const project = this.projects.get(`${projectId}`);
       const payment = project!.monthly_payment > budget
         ? budget
