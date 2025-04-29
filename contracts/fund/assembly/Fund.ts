@@ -226,8 +226,23 @@ export class Fund {
     return result;
   }
 
-  get_user_votes(): void {
-    // TODO
+  get_user_votes(args: fund.get_user_votes_arguments): fund.get_user_votes_result {
+    let keyByVoter = new Uint8Array(31);
+    keyByVoter.set(args.voter!);
+
+    const result = new fund.get_user_votes_result([]);
+
+    while (true) {
+      const voteRecord = this.projectsByVoter.getNext(keyByVoter);
+      if (!voteRecord) break;
+
+      keyByVoter = voteRecord.key!;
+      if (!Arrays.equal(keyByVoter.slice(0, 25), args.voter!)) break;
+
+      result.votes.push(voteRecord.value);
+    }
+
+    return result;
   }
 
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
@@ -386,7 +401,7 @@ export class Fund {
 
     if (args.weight > 0) {
       // update user vote and expiration time (most distant expiration)
-      vote = new fund.vote_info(globalVars!.payment_times[5], args.weight);
+      vote = new fund.vote_info(project!.id, args.weight, globalVars!.payment_times[5]);
       this.projectsByVoter.put(keyByVoter, vote);
     } else {
       // remove vote

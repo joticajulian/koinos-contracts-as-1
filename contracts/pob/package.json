@@ -24,6 +24,10 @@
     "integration-tests": "yarn jest",
     "local-koinos-auto": "local-koinos start -i 5000",
     "local-koinos:start": "local-koinos start",
-    "local-koinos:stop": "local-koinos stop"
+    "local-koinos:stop": "local-koinos stop",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "patch-package": "^8.0.0"
   }
 }

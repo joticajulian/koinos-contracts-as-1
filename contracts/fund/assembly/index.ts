@@ -58,6 +58,20 @@ export function main(): i32 {
       break;
     }
 
+    // get_user_votes
+    case 0x66f631d7: {
+      const args = Protobuf.decode<fund.get_user_votes_arguments>(
+        contractArgs.args,
+        fund.get_user_votes_arguments.decode
+      );
+      const res = c.get_user_votes(args);
+      retbuf = Protobuf.encode(
+        res,
+        fund.get_user_votes_result.encode
+      );
+      break;
+    }
+
     // submit_project
     case 0x3baabbbd: {
       const args = Protobuf.decode<fund.submit_project_arguments>(

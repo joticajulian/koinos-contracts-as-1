@@ -74,8 +74,9 @@ message existence {
 }
 
 message vote_info {
-  uint64 expiration = 1;
+  uint32 project_id = 1;
   uint32 weight = 2;
+  uint64 expiration = 3;
 }
 
 message set_votes_koinos_fund_arguments {
@@ -122,4 +123,12 @@ message get_projects_arguments {
 message get_projects_result {
   repeated project projects = 1;
   string start_next_page = 2;
+}
+
+message get_user_votes_arguments {
+  bytes voter = 1;
+}
+
+message get_user_votes_result {
+  repeated vote_info votes = 1;
 }

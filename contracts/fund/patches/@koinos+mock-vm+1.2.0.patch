@@ -1,0 +1,50 @@
+diff --git a/node_modules/@koinos/mock-vm/src/constants.js b/node_modules/@koinos/mock-vm/src/constants.js
+index aeb7c3c..7bf1ae4 100644
+--- a/node_modules/@koinos/mock-vm/src/constants.js
++++ b/node_modules/@koinos/mock-vm/src/constants.js
+@@ -16,6 +16,7 @@ const CONTRACT_ADDRESS_SPACE = {
+ const ENTRY_POINT_KEY = new TextEncoder('utf-8').encode('entry_point')
+ const CONTRACT_ARGUMENTS_KEY = new TextEncoder('utf-8').encode('contract_arguments')
+ const CONTRACT_RESULT_KEY = new TextEncoder('utf-8').encode('contract_result')
++const CALL_CONTRACT_ARGUMENTS_KEY = new TextEncoder('utf-8').encode('call_contract_arguments')
+ const CALL_CONTRACT_RESULTS_KEY = new TextEncoder('utf-8').encode('call_contract_results')
+ const CONTRACT_ID_KEY = new TextEncoder('utf-8').encode('contract_id')
+ const HEAD_INFO_KEY = new TextEncoder('utf-8').encode('head_info')
+@@ -44,6 +45,7 @@ module.exports = {
+   ENTRY_POINT_KEY,
+   CONTRACT_ARGUMENTS_KEY,
+   CONTRACT_RESULT_KEY,
++  CALL_CONTRACT_ARGUMENTS_KEY,
+   CALL_CONTRACT_RESULTS_KEY,
+   CONTRACT_ID_KEY,
+   HEAD_INFO_KEY,
+diff --git a/node_modules/@koinos/mock-vm/src/index.js b/node_modules/@koinos/mock-vm/src/index.js
+index bec2472..1608886 100644
+--- a/node_modules/@koinos/mock-vm/src/index.js
++++ b/node_modules/@koinos/mock-vm/src/index.js
+@@ -24,6 +24,7 @@ const {
+   ENTRY_POINT_KEY,
+   CONTRACT_ARGUMENTS_KEY,
+   CONTRACT_RESULT_KEY,
++  CALL_CONTRACT_ARGUMENTS_KEY,
+   CALL_CONTRACT_RESULTS_KEY,
+   CONTRACT_ID_KEY,
+   HEAD_INFO_KEY,
+@@ -444,6 +445,17 @@ class MockVM {
+ 
+         case koinos.chain.system_call_id.call: {
+           const { contract_id, entry_point, args } = koinos.chain.call_arguments.decode(argsBuf)
++
++          let callArgumentsBytes = this.db.getObject(METADATA_SPACE, CALL_CONTRACT_ARGUMENTS_KEY);
++          let callArguments;
++          if (callArgumentsBytes) {
++            callArguments = koinos.chain.list_type.decode(callArgumentsBytes.value);
++          } else {
++            callArguments = koinos.chain.list_type.create();
++          }
++          callArguments.values.push(koinos.chain.value_type.create({ bytes_value: argsBuf }));
++          this.db.putObject(METADATA_SPACE, CALL_CONTRACT_ARGUMENTS_KEY, koinos.chain.list_type.encode(callArguments).finish());
++
+           const dbObject = this.db.getObject(METADATA_SPACE, CALL_CONTRACT_RESULTS_KEY)
+ 
+           if (!dbObject) {
