@@ -21,6 +21,7 @@ const endMonth3 = 1743422400000; // 2025-03-31T12:00:00.000Z
 const endMonth4 = 1746014400000; // 2025-04-30T12:00:00.000Z
 const endMonth5 = 1748692800000; // 2025-05-31T12:00:00.000Z
 const endMonth6 = 1751284800000; // 2025-06-30T12:00:00.000Z
+const endMonth7 = 1753963200000; // 2025-07-31T12:00:00.000Z
 
 function configureFund(): void {
   // configure fund contract
@@ -236,16 +237,20 @@ describe("Fund contract", () => {
     configureFund();
     submitProject();
     voteProject();
+    MockVM.clearCallContractArguments();
     const fundContract = new Fund();
 
     // the payment is triggered from the PoB which is in kernel mode
     MockVM.setCaller(new chain.caller_data(pobAddress, chain.privilege.kernel_mode));
 
+    // time of payment is also controlled in the PoB contract
+    MockVM.setHeadInfo(new chain.head_info(null, endMonth1 + 30_000, 10)); // 2025-01-31T12:00:30.000Z
+
     MockVM.setCallContractResults([
       // result when getting KOIN balance of the fund contract
       new system_calls.exit_arguments(0, new chain.result(
         Protobuf.encode(
-          new kcs4.balance_of_result(1000),
+          new kcs4.balance_of_result(1500_00000000),
           kcs4.balance_of_result.encode
         )
       )),
@@ -258,27 +263,55 @@ describe("Fund contract", () => {
       )),
     ]);
 
-    fundContract.pay_projects();
+    const result = fundContract.pay_projects();
 
     const contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(7);
+    expect(contractCallArguments.length).toBe(2);
 
     // KOIN contract called to get balance of fund contract
-    /*expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
     expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     const args0 = Protobuf.decode<kcs4.balance_of_arguments>(
       contractCallArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
-    expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));*/
+    expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
-    // KOIN contract called to make a transfer
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.transfer);
-    const args0 = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[0].args,
+    // KOIN contract called to make a payment of 1000 koin
+    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    const args1 = Protobuf.decode<kcs4.transfer_arguments>(
+      contractCallArguments[1].args,
       kcs4.transfer_arguments.decode
     );
-    expect(`from ${Base58.encode(args0.from)} to ${Base58.encode(args0.to)} value ${args0.value}`).toBe(`from ${Base58.encode(fundAddress)} to ${Base58.encode(user1)} value 12`);
+    expect([
+      `from ${Base58.encode(args1.from)}`,
+      `to ${Base58.encode(args1.to)}`,
+      `value ${args1.value}`
+    ].join(" ")).toBe([
+      `from ${Base58.encode(fundAddress)}`,
+      `to ${Base58.encode(user1)}`,
+      `value 100000000000`
+    ].join(" "));
+
+    // next payment time is in the result
+    expect(result.next_payment_time).toBe(endMonth2);
+
+    // global vars are updated
+    const globalVars = fundContract.get_global_vars();
+    expect(globalVars.fee_denominator).toBe(10000);
+    expect(globalVars.total_projects).toBe(1);
+    expect(globalVars.total_upcoming_projects).toBe(0);
+    expect(globalVars.total_active_projects).toBe(1);
+    expect(globalVars.remaining_balance).toBe(500_00000000);
+    expect(globalVars.payment_times.toString()).toBe([
+      // endMonth1, the current payment time, is removed from the list
+      `${endMonth2}`, // the next payment time is endMonth2
+      `${endMonth3}`,
+      `${endMonth4}`,
+      `${endMonth5}`,
+      `${endMonth6}`,
+      `${endMonth7}`, // there is a new time in the list: endMonth7
+    ].join(","));
   });
 });
