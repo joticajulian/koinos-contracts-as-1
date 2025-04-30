@@ -100,6 +100,36 @@ function voteProject(): void {
   fundContract.update_vote(voteArguments);
 }
 
+function payProjects(): fund.pay_projects_result {
+  const fundContract = new Fund();
+
+  // the payment is triggered from the PoB which is in kernel mode
+  MockVM.setCaller(new chain.caller_data(pobAddress, chain.privilege.kernel_mode));
+
+  // time of payment is also controlled in the PoB contract
+  MockVM.setHeadInfo(new chain.head_info(null, endMonth1 + 30_000, 10)); // 2025-01-31T12:00:30.000Z
+
+  MockVM.setCallContractResults([
+    // result when getting KOIN balance of the fund contract
+    new system_calls.exit_arguments(0, new chain.result(
+      Protobuf.encode(
+        new kcs4.balance_of_result(1500_00000000),
+        kcs4.balance_of_result.encode
+      )
+    )),
+    // result when making a KOIN transfer (payment)
+    new system_calls.exit_arguments(0, new chain.result(
+      Protobuf.encode(
+        new kcs4.transfer_result(),
+        kcs4.transfer_result.encode
+      )
+    )),
+  ]);
+
+  const result = fundContract.pay_projects();
+  return result;
+}
+
 describe("Fund contract", () => {
   beforeEach(() => {
     MockVM.reset();
@@ -108,7 +138,7 @@ describe("Fund contract", () => {
     MockVM.setContractAddress("koin", koinAddress);
     MockVM.setContractAddress("vhp", vhpAddress);
     MockVM.setEntryPoint(0);
-    MockVM.setCaller(new chain.caller_data());
+    MockVM.setCaller(new chain.caller_data(new Uint8Array(0), chain.privilege.user_mode));
     MockVM.setHeadInfo(new chain.head_info(null, 1736899200000, 1)); // 2025-01-15T00:00:00.000Z
 
     System.resetCache();
@@ -233,37 +263,43 @@ describe("Fund contract", () => {
     expect(votes.votes[0].expiration).toBe(endMonth6);
   });
 
+  it("should update votes after an update in the balance", () => {
+    configureFund();
+    submitProject();
+    voteProject();
+    const fundContract = new Fund();
+
+    MockVM.setCaller(new chain.caller_data(koinAddress, chain.privilege.user_mode));
+    fundContract.update_votes(new fund.update_votes_arguments(user2, 2000, 1000));
+
+    // check active projects by votes
+    const projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(1);
+    expect(projects.start_next_page).toBe("00000000000044000999999");
+    expect(projects.projects[0].id).toBe(1);
+    expect(projects.projects[0].total_votes).toBe(44000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,44000");
+
+    // get user votes
+    const votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user2));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(1);
+    expect(votes.votes[0].weight).toBe(20);
+    expect(votes.votes[0].expiration).toBe(endMonth6);
+  });
+
   it("should pay projects", () => {
     configureFund();
     submitProject();
     voteProject();
     MockVM.clearCallContractArguments();
+    const result = payProjects();
     const fundContract = new Fund();
-
-    // the payment is triggered from the PoB which is in kernel mode
-    MockVM.setCaller(new chain.caller_data(pobAddress, chain.privilege.kernel_mode));
-
-    // time of payment is also controlled in the PoB contract
-    MockVM.setHeadInfo(new chain.head_info(null, endMonth1 + 30_000, 10)); // 2025-01-31T12:00:30.000Z
-
-    MockVM.setCallContractResults([
-      // result when getting KOIN balance of the fund contract
-      new system_calls.exit_arguments(0, new chain.result(
-        Protobuf.encode(
-          new kcs4.balance_of_result(1500_00000000),
-          kcs4.balance_of_result.encode
-        )
-      )),
-      // result when making a KOIN transfer (payment)
-      new system_calls.exit_arguments(0, new chain.result(
-        Protobuf.encode(
-          new kcs4.transfer_result(),
-          kcs4.transfer_result.encode
-        )
-      )),
-    ]);
-
-    const result = fundContract.pay_projects();
 
     const contractCallArguments = MockVM.getCallContractArguments();
     expect(contractCallArguments.length).toBe(2);
@@ -313,5 +349,18 @@ describe("Fund contract", () => {
       `${endMonth6}`,
       `${endMonth7}`, // there is a new time in the list: endMonth7
     ].join(","));
+
+    // the votes are more closer to expire in the project
+    const projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(1);
+    expect(projects.start_next_page).toBe("00000000000024000999999");
+    expect(projects.projects[0].id).toBe(1);
+    expect(projects.projects[0].total_votes).toBe(24000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,24000,0");
   });
 });
