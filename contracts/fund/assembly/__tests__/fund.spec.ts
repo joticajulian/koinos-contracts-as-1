@@ -8,6 +8,14 @@ const vhpAddress = Base58.decode("12b1oodJ3jXahLHaHA7A5HX8bpCs9phft6");
 const pobAddress = Base58.decode("1C7V1hZfn36cej3vLNJ6zNF41EUcbMdJw6");
 const user1 = Base58.decode("1CLyivtwq2h8SnhLfDDNmmvxvGRANDr9XU");
 const user2 = Base58.decode("1PWFatQaSXGfkosYwer3U8YrrpsuRc95kJ");
+const user3 = Base58.decode("1M77WXDFWk67L54MT7RGyYRp4weagTyQHB");
+const user4 = Base58.decode("1JzLa9DvFV8yTizBf8TMiRcM2HHfkW5RWN");
+const user5 = Base58.decode("1McdjFeoDXbB9w6uub9G3yutaqZ8zFKXQP");
+const user6 = Base58.decode("1KAYVsnRtKuECPYrh4aat1ukV27xRSQhtf");
+const user7 = Base58.decode("15ckQxzF3VMotq6zd2Lfd9JvCNGSj6vuGF");
+const user8 = Base58.decode("1FM5gXUAJgFJ3s6k5Nni8FAXaoX1Hnph28");
+const user9 = Base58.decode("16gyVkaoeZpSbWDQHouRPGD9eH46GH8cTN");
+const user10 = Base58.decode("1AV8Bvt6T9aari2mVdkQmX9XnDP2XUpxp7");
 
 enum EntryPoint {
   balanceOf = 0x5c721497, // 1550980247
@@ -42,7 +50,15 @@ function configureFund(): void {
   MockVM.setSystemAuthority(false);
 }
 
-function submitProject(): void {
+function submitProject(
+  creator: Uint8Array = user1,
+  beneficiary: Uint8Array = user1,
+  title: string = "My project 1",
+  monthlyPayment: u64 = 1000_00000000,
+  startDate: u64 = 1735689600000, // 2025-01-01T00:00:00.000Z
+  endDate: u64 = 1767225600000, // 2026-01-01T00:00:00.000Z
+  fee: u64 = 5_00000000,
+): void {
   const fundContract = new Fund();
 
   // response ok from KOIN contract when making the transfer.
@@ -51,51 +67,71 @@ function submitProject(): void {
 
   fundContract.submit_project(
     new fund.submit_project_arguments(
-      user1, // creator
-      user1,
-      "My project 1",
-      "My project 1 description",
-      1000_00000000,
-      1735689600000, // 2025-01-01T00:00:00.000Z
-      1767225600000, // 2026-01-01T00:00:00.000Z
-      5_00000000 // 5 Koins
+      creator,
+      beneficiary,
+      title,
+      `My description for title ${title}`,
+      monthlyPayment,
+      startDate,
+      endDate,
+      fee
     )
   );
 }
 
-function voteProject(): void {
+function voteProject(
+  voter: Uint8Array = user2,
+  projectId: u32 = 1,
+  weight: u32 = 20,
+  balances: string = "1000 KOIN / 200 VHP",
+  callSetVotesKoinosFund: bool = true
+): void {
   const fundContract = new Fund();
 
-  // user2 accepts to vote for the project
+  // voter accepts to vote for the project
   MockVM.setAuthorities(
     [
-      new MockVM.MockAuthority(authority.authorization_type.contract_call, user2, true),
+      new MockVM.MockAuthority(authority.authorization_type.contract_call, voter, true),
     ]
   );
 
-  const voteArguments = new fund.update_vote_arguments(user2, 1, 20);
+  const voteArguments = new fund.update_vote_arguments(voter, projectId, weight);
   MockVM.setContractArguments(Protobuf.encode(voteArguments, fund.update_vote_arguments.encode));
 
-  MockVM.setCallContractResults([
+  const callContractResults: system_calls.exit_arguments[] = [];
+  if (callSetVotesKoinosFund) {
     // result when calling set_votes_koinos_fund in koin contract
-    new system_calls.exit_arguments(0, new chain.result()),
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
     // result when calling set_votes_koinos_fund in vhp contract
-    new system_calls.exit_arguments(0, new chain.result()),
-    // result when getting KOIN balance
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+  }
+
+  // example: "1000 KOIN / 200 VHP"
+  const values = balances.split(" ");
+  const koinBalance = u64.parse(values[0]) * 100000000;
+  const vhpBalance = u64.parse(values[3]) * 100000000;
+
+  // result when getting KOIN balance
+  callContractResults.push(
     new system_calls.exit_arguments(0, new chain.result(
       Protobuf.encode(
-        new kcs4.balance_of_result(1000),
+        new kcs4.balance_of_result(koinBalance),
         kcs4.balance_of_result.encode
       )
-    )),
-    // result when getting VHP balance
+    )
+  ));
+
+  // result when getting KOIN balance
+  callContractResults.push(
     new system_calls.exit_arguments(0, new chain.result(
       Protobuf.encode(
-        new kcs4.balance_of_result(200),
+        new kcs4.balance_of_result(vhpBalance),
         kcs4.balance_of_result.encode
       )
-    )),
-  ]);
+    )
+  ));
+
+  MockVM.setCallContractResults(callContractResults);
 
   fundContract.update_vote(voteArguments);
 }
@@ -147,8 +183,20 @@ describe("Fund contract", () => {
   it("should get global vars", () => {
     configureFund();
     const fundContract = new Fund();
-    const result = fundContract.get_global_vars();
-    expect(result.fee_denominator).toBe(10000);
+    const globalVars = fundContract.get_global_vars();
+    expect(globalVars.fee_denominator).toBe(10000);
+    expect(globalVars.total_projects).toBe(0);
+    expect(globalVars.total_upcoming_projects).toBe(0);
+    expect(globalVars.total_active_projects).toBe(0);
+    expect(globalVars.remaining_balance).toBe(0);
+    expect(globalVars.payment_times.toString()).toBe([
+      `${endMonth1}`,
+      `${endMonth2}`,
+      `${endMonth3}`,
+      `${endMonth4}`,
+      `${endMonth5}`,
+      `${endMonth6}`,
+    ].join(","));
   });
 
   it("should submit a project", () => {
@@ -163,7 +211,7 @@ describe("Fund contract", () => {
     expect(Base58.encode(project.creator!)).toBe(Base58.encode(user1));
     expect(Base58.encode(project.beneficiary!)).toBe(Base58.encode(user1));
     expect(project.title).toBe("My project 1");
-    expect(project.description).toBe("My project 1 description");
+    expect(project.description).toBe("My description for title My project 1");
     expect(project.monthly_payment).toBe(1000_00000000);
     expect(project.start_date).toBe(1735689600000); // 2025-01-01T00:00:00.000Z
     expect(project.end_date).toBe(1767225600000); // 2026-01-01T00:00:00.000Z
@@ -250,10 +298,10 @@ describe("Fund contract", () => {
       10
     ));
     expect(projects.projects.length).toBe(1);
-    expect(projects.start_next_page).toBe("00000000000024000999999");
+    expect(projects.start_next_page).toBe("00002400000000000999999");
     expect(projects.projects[0].id).toBe(1);
-    expect(projects.projects[0].total_votes).toBe(24000);
-    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,24000");
+    expect(projects.projects[0].total_votes).toBe(2400000000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,2400000000000");
 
     // get user votes
     const votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user2));
@@ -270,7 +318,7 @@ describe("Fund contract", () => {
     const fundContract = new Fund();
 
     MockVM.setCaller(new chain.caller_data(koinAddress, chain.privilege.user_mode));
-    fundContract.update_votes(new fund.update_votes_arguments(user2, 2000, 1000));
+    fundContract.update_votes(new fund.update_votes_arguments(user2, 2000_00000000, 1000_00000000));
 
     // check active projects by votes
     const projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -280,10 +328,10 @@ describe("Fund contract", () => {
       10
     ));
     expect(projects.projects.length).toBe(1);
-    expect(projects.start_next_page).toBe("00000000000044000999999");
+    expect(projects.start_next_page).toBe("00004400000000000999999");
     expect(projects.projects[0].id).toBe(1);
-    expect(projects.projects[0].total_votes).toBe(44000);
-    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,44000");
+    expect(projects.projects[0].total_votes).toBe(4400000000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,4400000000000");
 
     // get user votes
     const votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user2));
@@ -291,6 +339,23 @@ describe("Fund contract", () => {
     expect(votes.votes[0].project_id).toBe(1);
     expect(votes.votes[0].weight).toBe(20);
     expect(votes.votes[0].expiration).toBe(endMonth6);
+
+    // no changes in global vars
+    // global vars are updated
+    const globalVars = fundContract.get_global_vars();
+    expect(globalVars.fee_denominator).toBe(10000);
+    expect(globalVars.total_projects).toBe(1);
+    expect(globalVars.total_upcoming_projects).toBe(0);
+    expect(globalVars.total_active_projects).toBe(1);
+    expect(globalVars.remaining_balance).toBe(0);
+    expect(globalVars.payment_times.toString()).toBe([
+      `${endMonth1}`,
+      `${endMonth2}`,
+      `${endMonth3}`,
+      `${endMonth4}`,
+      `${endMonth5}`,
+      `${endMonth6}`,
+    ].join(","));
   });
 
   it("should pay projects", () => {
@@ -358,9 +423,157 @@ describe("Fund contract", () => {
       10
     ));
     expect(projects.projects.length).toBe(1);
-    expect(projects.start_next_page).toBe("00000000000024000999999");
+    expect(projects.start_next_page).toBe("00002400000000000999999");
     expect(projects.projects[0].id).toBe(1);
-    expect(projects.projects[0].total_votes).toBe(24000);
-    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,24000,0");
+    expect(projects.projects[0].total_votes).toBe(2400000000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,2400000000000,0");
+  });
+
+  it("should perform a complete flow with different project and votes", () => {
+    configureFund();
+    const fundContract = new Fund();
+
+    // now is 2025-01-01
+    MockVM.setHeadInfo(new chain.head_info(null,
+      Date.fromString("2025-01-01").getTime()
+    ));
+
+    submitProject(user1, user1, "project 1", u64(12e8),
+      Date.fromString("2025-02-15").getTime(), // upcoming
+      Date.fromString("2026-02-15").getTime()
+    );
+    submitProject(user2, user2, "project 2", u64(123e8),
+      Date.fromString("2025-01-15").getTime(), // upcoming
+      Date.fromString("2025-07-15").getTime()
+    );
+    submitProject(user3, user3, "project 3", u64(1000e8),
+      Date.fromString("2024-10-01").getTime(), // active
+      Date.fromString("2027-08-15").getTime()
+    );
+    submitProject(user4, user4, "project 4", u64(1000e8),
+      Date.fromString("2024-11-01").getTime(), // active
+      Date.fromString("2025-01-30").getTime()
+    );
+
+    MockVM.commitTransaction();
+
+    expect(() =>{
+      submitProject(user5, user5, "project 5", u64(1000e8),
+        Date.fromString("2024-10-01").getTime(),
+        Date.fromString("2027-08-15").getTime()
+      );
+    }).toThrow(); // the fee has increased because there are more projects
+    expect(MockVM.getErrorMessage()).toBe("the fee must be at least 1131840000");
+
+    submitProject(user5, user5, "project 5", u64(1000e8),
+      Date.fromString("2024-10-01").getTime(), // active
+      Date.fromString("2027-08-15").getTime(),
+      1131840000
+    );
+
+    MockVM.commitTransaction();
+
+    expect(() => {
+      submitProject(user6, user6, "project 6", u64(1500e8),
+        Date.fromString("2024-10-01").getTime(),
+        Date.fromString("2024-12-15").getTime()
+      );
+    }).toThrow(); // project in the past
+    expect(MockVM.getErrorMessage()).toBe("ending date must be in the future");
+
+    // check past projects by date
+    let projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.past,
+      fund.order_projects_by.by_date,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(0);
+    expect(projects.start_next_page).toBe("");
+
+    // check upcoming projects by date
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.upcoming,
+      fund.order_projects_by.by_date,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(2);
+    expect(projects.start_next_page).toBe("1739577600000000001");
+    expect(projects.projects[0].id).toBe(2);
+    expect(projects.projects[0].title).toBe("project 2"); // project 2 starts before project 1
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(1);
+    expect(projects.projects[1].title).toBe("project 1");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // check active projects by date
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_date,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("1818288000000000005");
+    expect(projects.projects[0].id).toBe(4); // project 4 is the first one to end
+    expect(projects.projects[0].title).toBe("project 4");
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(3); // project 3 and 5 end at the same time, but 3 was submitted first
+    expect(projects.projects[1].title).toBe("project 3");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // check upcoming projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.upcoming,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(2);
+    expect(projects.start_next_page).toBe("00000000000000000999998");
+    expect(projects.projects[0].id).toBe(1);
+    expect(projects.projects[0].title).toBe("project 1"); // same votes but project 1 was submitted first
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(2);
+    expect(projects.projects[1].title).toBe("project 2");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(3); // same votes. Ordered by time of submission
+    expect(projects.projects[0].title).toBe("project 3");
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(4); // project 4 is the first one to end
+    expect(projects.projects[1].title).toBe("project 4");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // users start to vote
+
   });
 });
