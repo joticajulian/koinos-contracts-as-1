@@ -84,7 +84,9 @@ function voteProject(
   projectId: u32 = 1,
   weight: u32 = 20,
   balances: string = "1000 KOIN / 200 VHP",
-  callSetVotesKoinosFund: bool = true
+  callSetVotesKoinosFundPastVoteRemoved: bool = false,
+  callSetVotesKoinosFundNewVote: bool = true,
+  callSetVotesKoinosFundVoteRemoved: bool = false,
 ): void {
   const fundContract = new Fund();
 
@@ -99,7 +101,18 @@ function voteProject(
   MockVM.setContractArguments(Protobuf.encode(voteArguments, fund.update_vote_arguments.encode));
 
   const callContractResults: system_calls.exit_arguments[] = [];
-  if (callSetVotesKoinosFund) {
+  
+  // call token contracts to notify that the user had votes in the past
+  // but all of them are now removed because they are related to past projects
+  if (callSetVotesKoinosFundPastVoteRemoved) {
+    // result when calling set_votes_koinos_fund in koin contract
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+    // result when calling set_votes_koinos_fund in vhp contract
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+  }
+
+  // call token contracts to notify that the user is voting for projects
+  if (callSetVotesKoinosFundNewVote) {
     // result when calling set_votes_koinos_fund in koin contract
     callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
     // result when calling set_votes_koinos_fund in vhp contract
@@ -131,9 +144,41 @@ function voteProject(
     )
   ));
 
+  // call token contracts to notify that the user removed the votes in all projects
+  if (callSetVotesKoinosFundVoteRemoved) {
+    // result when calling set_votes_koinos_fund in koin contract
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+    // result when calling set_votes_koinos_fund in vhp contract
+    callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+  }
+
   MockVM.setCallContractResults(callContractResults);
 
   fundContract.update_vote(voteArguments);
+}
+
+function updateBalance(
+  voter: Uint8Array = user2,
+  change: string = "from 1000 KOIN to 2000 KOIN"
+): void {
+  const fundContract = new Fund();
+  // example: "from 1000 KOIN to 1500 KOIN"
+  const values = change.split(" ");
+  const tokenAddress = values[2] == "KOIN" ? koinAddress : vhpAddress;
+
+  // special function triggered by KOIN or VHP contract
+  MockVM.setCaller(new chain.caller_data(tokenAddress, chain.privilege.user_mode));
+
+  fundContract.update_votes(
+    new fund.update_votes_arguments(
+      voter,
+      u64.parse(values[4]) * 100000000,
+      u64.parse(values[1]) * 100000000
+    )
+  );
+
+  // restore caller
+  MockVM.setCaller(new chain.caller_data(new Uint8Array(0), chain.privilege.user_mode));
 }
 
 function payProjects(): fund.pay_projects_result {
@@ -163,6 +208,10 @@ function payProjects(): fund.pay_projects_result {
   ]);
 
   const result = fundContract.pay_projects();
+
+  // restore caller
+  MockVM.setCaller(new chain.caller_data(new Uint8Array(0), chain.privilege.user_mode));
+
   return result;
 }
 
@@ -315,10 +364,8 @@ describe("Fund contract", () => {
     configureFund();
     submitProject();
     voteProject();
+    updateBalance();
     const fundContract = new Fund();
-
-    MockVM.setCaller(new chain.caller_data(koinAddress, chain.privilege.user_mode));
-    fundContract.update_votes(new fund.update_votes_arguments(user2, 2000_00000000, 1000_00000000));
 
     // check active projects by votes
     const projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -574,6 +621,125 @@ describe("Fund contract", () => {
     expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
 
     // users start to vote
+    voteProject(user6, 4, 5, "1000000 KOIN / 0 VHP", false, true, false);
 
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(4); // project 4 has more votes
+    expect(projects.projects[0].title).toBe("project 4");
+    expect(projects.projects[0].total_votes).toBe(5000000_00000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,500000000000000");
+    expect(projects.projects[1].id).toBe(3);
+    expect(projects.projects[1].title).toBe("project 3");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // change of vote (from weigth 5 to weigth 7)
+    voteProject(user6, 4, 7, "1000000 KOIN / 0 VHP", false, false, false);
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(4); // project 4 has more votes
+    expect(projects.projects[0].title).toBe("project 4");
+    expect(projects.projects[0].total_votes).toBe(7000000_00000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,700000000000000");
+    expect(projects.projects[1].id).toBe(3);
+    expect(projects.projects[1].title).toBe("project 3");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // get user votes
+    let votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user6));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(4);
+    expect(votes.votes[0].weight).toBe(7);
+    expect(votes.votes[0].expiration).toBe(endMonth6);
+
+    // there is a change in the balance of the user
+    updateBalance(user6, "from 1000000 KOIN to 3 KOIN");
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(4); // project 4 has more votes
+    expect(projects.projects[0].title).toBe("project 4");
+    expect(projects.projects[0].total_votes).toBe(21_00000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,2100000000");
+    expect(projects.projects[1].id).toBe(3);
+    expect(projects.projects[1].title).toBe("project 3");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // get user votes
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user6));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(4);
+    expect(votes.votes[0].weight).toBe(7);
+    expect(votes.votes[0].expiration).toBe(endMonth6);
+
+    // user removes the vote
+    voteProject(user6, 4, 0, "3 KOIN / 0 VHP", false, false, true);
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(3);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(3); // same votes. Ordered by time of submission
+    expect(projects.projects[0].title).toBe("project 3");
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(4); // project 4 is the first one to end
+    expect(projects.projects[1].title).toBe("project 4");
+    expect(projects.projects[1].total_votes).toBe(0);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(5);
+    expect(projects.projects[2].title).toBe("project 5");
+    expect(projects.projects[2].total_votes).toBe(0);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,0,0");
+
+    // get user votes
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user6));
+    expect(votes.votes.length).toBe(0);
   });
 });

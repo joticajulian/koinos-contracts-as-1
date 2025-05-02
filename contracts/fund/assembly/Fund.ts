@@ -488,7 +488,7 @@ export class Fund {
         // get ID of the project in the list ordered by votes
         const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
 
-        const deltaVoteWeight = vote.weight * (args.new_balance - args.old_balance);
+        const deltaVoteWeight: u64 = vote.weight * (args.new_balance - args.old_balance);
         for (let i = 0; i < 6; i += 1) {
           if (globalVars!.payment_times[i] == vote.expiration) {
             // there are 6 expiration times, update the corresponding period
