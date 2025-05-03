@@ -527,10 +527,11 @@ export class Fund {
       const upcoming = this.upcomingProjectsByDate.getNext("");
       if (!upcoming) break;
       const startingDate = u64.parse(StringBytes.bytesToString(upcoming.key!.slice(0, 13)));
+      const projectId = u32.parse(StringBytes.bytesToString(upcoming.key!.slice(13)));
       if (now < startingDate) break;
 
       // update project status
-      const project = this.projects.get(StringBytes.bytesToString(upcoming.key!.slice(13)));
+      const project = this.projects.get(`${projectId}`);
       project!.status = fund.project_status.active;
       this.projects.put(`${project!.id}`, project!);
 
@@ -550,10 +551,11 @@ export class Fund {
       const active = this.activeProjectsByDate.getNext("");
       if (!active) break;
       const endingDate = u64.parse(StringBytes.bytesToString(active.key!.slice(0, 13)));
+      const projectId = u32.parse(StringBytes.bytesToString(active.key!.slice(13)));
       if (now < endingDate) break;
 
       // update project status
-      const project = this.projects.get(StringBytes.bytesToString(active.key!.slice(13)));
+      const project = this.projects.get(`${projectId}`);
       project!.status = fund.project_status.past;
       this.projects.put(`${project!.id}`, project!);
 
@@ -577,7 +579,10 @@ export class Fund {
         ? budget
         : project!.monthly_payment;
       budget -= payment;
-      if (!Arrays.equal(project!.beneficiary, this.contractId)) {
+      if (payment > 0 &&
+        !Arrays.equal(project!.beneficiary, this.contractId) &&
+        project!.total_votes > 0
+      ) {
         // transfer to beneficiary
         koinToken.transfer(this.contractId, project!.beneficiary!, payment);
         budgetExecuted += payment;
