@@ -600,10 +600,18 @@ export class Fund {
       const project = this.projects.get(`${projectId}`);
       // move votes 1 position and remove old votes
       const oldVotes = project!.votes.shift();
+      // get ID of sorted by votes before updating total votes
+      const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
       // the furthest votes from expiring are zero
       project!.votes.push(0);
       project!.total_votes -= oldVotes;
       this.projects.put(`${projectId}`, project!);
+      if (oldVotes > 0) {
+        // reorder projects by votes
+        const newIdByVotes = idByVotes(project!.total_votes, project!.id);
+        this.upcomingProjectsByVotes.remove(oldIdByVotes);
+        this.upcomingProjectsByVotes.put(newIdByVotes, new fund.existence());
+      }
       nextId = StringBytes.bytesToString(upcoming.key!);
     }
 
@@ -616,10 +624,18 @@ export class Fund {
       const project = this.projects.get(`${projectId}`);
       // move votes 1 position and remove old votes
       const oldVotes = project!.votes.shift();
+      // get ID of sorted by votes before updating total votes
+      const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
       // the furthest votes from expiring are zero
       project!.votes.push(0);
       project!.total_votes -= oldVotes;
       this.projects.put(`${projectId}`, project!);
+      if (oldVotes > 0) {
+        // reorder projects by votes
+        const newIdByVotes = idByVotes(project!.total_votes, project!.id);
+        this.activeProjectsByVotes.remove(oldIdByVotes);
+        this.activeProjectsByVotes.put(newIdByVotes, new fund.existence());
+      }
       nextId = StringBytes.bytesToString(active.key!);
     }
 
