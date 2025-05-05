@@ -1186,7 +1186,7 @@ describe("Fund contract", () => {
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
-    System.log("Complete flow: End of 4rd month, payment of projects");
+    System.log("Complete flow: End of 4th month, payment of projects");
 
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth4, u64(10_000e8), 3);
@@ -1310,5 +1310,246 @@ describe("Fund contract", () => {
     expect(projects.projects[3].title).toBe("project 2");
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
+
+    System.log("Complete flow: New project submitted to not spend, return the savings to the Fund contract");
+
+    submitProject(user1, fundAddress, "Return project", u64(500_000_000e8),
+      Date.fromString("2025-04-15").getTime(), // active
+      Date.fromString("2050-04-01").getTime(),
+      100_00000000 // fee 100 koin
+    );
+
+    // the new return proposal is voted
+    voteProject(user7, 6, 8, "5000 KOIN / 1000 VHP", false, false, false);
+
+    System.log("Complete flow: End of 5th month, payment of projects");
+
+    MockVM.clearCallContractArguments();
+    resultPayProjects = payProjects(endMonth5, u64(10_000e8), 2);
+
+    contractCallArguments = MockVM.getCallContractArguments();
+    expect(contractCallArguments.length).toBe(3);
+
+    // KOIN contract called to get balance of fund contract
+    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    args0 = Protobuf.decode<kcs4.balance_of_arguments>(
+      contractCallArguments[0].args,
+      kcs4.balance_of_arguments.decode
+    );
+    expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
+
+    // KOIN contract called to make a payment of 1100 koin to project 3
+    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    argsT = Protobuf.decode<kcs4.transfer_arguments>(
+      contractCallArguments[1].args,
+      kcs4.transfer_arguments.decode
+    );
+    expect([
+      `from ${Base58.encode(argsT.from)}`,
+      `to ${Base58.encode(argsT.to)}`,
+      `value ${argsT.value}`
+    ].join(" ")).toBe([
+      `from ${Base58.encode(fundAddress)}`,
+      `to ${Base58.encode(user3)}`,
+      `value 110000000000`
+    ].join(" "));
+
+    // KOIN contract called to make a payment of 12 koin to project 1
+    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    argsT = Protobuf.decode<kcs4.transfer_arguments>(
+      contractCallArguments[2].args,
+      kcs4.transfer_arguments.decode
+    );
+    expect([
+      `from ${Base58.encode(argsT.from)}`,
+      `to ${Base58.encode(argsT.to)}`,
+      `value ${argsT.value}`
+    ].join(" ")).toBe([
+      `from ${Base58.encode(fundAddress)}`,
+      `to ${Base58.encode(user1)}`,
+      `value 1200000000`
+    ].join(" "));
+
+    // project 5 does not receive payment this time because the return proposal
+    // has more votes
+
+    // next payment time is in the result
+    expect(resultPayProjects.next_payment_time).toBe(endMonth6);
+
+    // global vars are updated
+    globalVars = fundContract.get_global_vars();
+    expect(globalVars.fee_denominator).toBe(10000);
+    expect(globalVars.total_projects).toBe(6);
+    expect(globalVars.total_upcoming_projects).toBe(0);
+    expect(globalVars.total_active_projects).toBe(5);
+    expect(globalVars.remaining_balance).toBe(8888_00000000);
+    expect(globalVars.payment_times.toString()).toBe([
+      `${endMonth6}`,
+      `${endMonth7}`,
+      `${endMonth8}`,
+      `${endMonth9}`,
+      `${endMonth10}`,
+      `${endMonth11}`,
+    ].join(","));
+
+    // check upcoming projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.upcoming,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(0);
+    expect(projects.start_next_page).toBe("99999999999999999999999");
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(5);
+    expect(projects.start_next_page).toBe("00000000000000000999998");
+    expect(projects.projects[0].id).toBe(3);
+    expect(projects.projects[0].title).toBe("project 3");
+    expect(projects.projects[0].total_votes).toBe(32800000000000);
+    expect(projects.projects[0].votes.toString()).toBe("0,28600000000000,0,4200000000000,0,0");
+    expect(projects.projects[1].id).toBe(1);
+    expect(projects.projects[1].title).toBe("project 1");
+    expect(projects.projects[1].total_votes).toBe(9800000000000);
+    expect(projects.projects[1].votes.toString()).toBe("0,9800000000000,0,0,0,0");
+    expect(projects.projects[2].id).toBe(6);
+    expect(projects.projects[2].title).toBe("Return project");
+    expect(projects.projects[2].total_votes).toBe(4800000000000);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,0,4800000000000,0");
+    expect(projects.projects[3].id).toBe(5);
+    expect(projects.projects[3].title).toBe("project 5");
+    expect(projects.projects[3].total_votes).toBe(3600000000000);
+    expect(projects.projects[3].votes.toString()).toBe("0,3600000000000,0,0,0,0");
+    expect(projects.projects[4].id).toBe(2);
+    expect(projects.projects[4].title).toBe("project 2");
+    expect(projects.projects[4].total_votes).toBe(0);
+    expect(projects.projects[4].votes.toString()).toBe("0,0,0,0,0,0");
+
+    System.log("Complete flow: End of 6th month, payment of projects");
+
+    MockVM.clearCallContractArguments();
+    resultPayProjects = payProjects(endMonth6, u64(18_888e8), 2);
+
+    contractCallArguments = MockVM.getCallContractArguments();
+    expect(contractCallArguments.length).toBe(3);
+
+    // KOIN contract called to get balance of fund contract
+    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    args0 = Protobuf.decode<kcs4.balance_of_arguments>(
+      contractCallArguments[0].args,
+      kcs4.balance_of_arguments.decode
+    );
+    expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
+
+    // KOIN contract called to make a payment of 1100 koin to project 3
+    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    argsT = Protobuf.decode<kcs4.transfer_arguments>(
+      contractCallArguments[1].args,
+      kcs4.transfer_arguments.decode
+    );
+    expect([
+      `from ${Base58.encode(argsT.from)}`,
+      `to ${Base58.encode(argsT.to)}`,
+      `value ${argsT.value}`
+    ].join(" ")).toBe([
+      `from ${Base58.encode(fundAddress)}`,
+      `to ${Base58.encode(user3)}`,
+      `value 110000000000`
+    ].join(" "));
+
+    // KOIN contract called to make a payment of 12 koin to project 1
+    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    argsT = Protobuf.decode<kcs4.transfer_arguments>(
+      contractCallArguments[2].args,
+      kcs4.transfer_arguments.decode
+    );
+    expect([
+      `from ${Base58.encode(argsT.from)}`,
+      `to ${Base58.encode(argsT.to)}`,
+      `value ${argsT.value}`
+    ].join(" ")).toBe([
+      `from ${Base58.encode(fundAddress)}`,
+      `to ${Base58.encode(user1)}`,
+      `value 1200000000`
+    ].join(" "));
+
+    // project 5 does not receive payment this time because the return proposal
+    // has more votes
+
+    // next payment time is in the result
+    expect(resultPayProjects.next_payment_time).toBe(endMonth7);
+
+    // global vars are updated
+    globalVars = fundContract.get_global_vars();
+    expect(globalVars.fee_denominator).toBe(10000);
+    expect(globalVars.total_projects).toBe(6);
+    expect(globalVars.total_upcoming_projects).toBe(0);
+    expect(globalVars.total_active_projects).toBe(5);
+    expect(globalVars.remaining_balance).toBe(17776_00000000);
+    expect(globalVars.payment_times.toString()).toBe([
+      `${endMonth7}`,
+      `${endMonth8}`,
+      `${endMonth9}`,
+      `${endMonth10}`,
+      `${endMonth11}`,
+      `${endMonth12}`,
+    ].join(","));
+
+    // check upcoming projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.upcoming,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(0);
+    expect(projects.start_next_page).toBe("99999999999999999999999");
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(5);
+    expect(projects.start_next_page).toBe("00000000000000000999998");
+    expect(projects.projects[0].id).toBe(3);
+    expect(projects.projects[0].title).toBe("project 3");
+    expect(projects.projects[0].total_votes).toBe(32800000000000);
+    expect(projects.projects[0].votes.toString()).toBe("28600000000000,0,4200000000000,0,0,0");
+    expect(projects.projects[1].id).toBe(1);
+    expect(projects.projects[1].title).toBe("project 1");
+    expect(projects.projects[1].total_votes).toBe(9800000000000);
+    expect(projects.projects[1].votes.toString()).toBe("9800000000000,0,0,0,0,0");
+    expect(projects.projects[2].id).toBe(6);
+    expect(projects.projects[2].title).toBe("Return project");
+    expect(projects.projects[2].total_votes).toBe(4800000000000);
+    expect(projects.projects[2].votes.toString()).toBe("0,0,0,4800000000000,0,0");
+    expect(projects.projects[3].id).toBe(5);
+    expect(projects.projects[3].title).toBe("project 5");
+    expect(projects.projects[3].total_votes).toBe(3600000000000);
+    expect(projects.projects[3].votes.toString()).toBe("3600000000000,0,0,0,0,0");
+    expect(projects.projects[4].id).toBe(2);
+    expect(projects.projects[4].title).toBe("project 2");
+    expect(projects.projects[4].total_votes).toBe(0);
+    expect(projects.projects[4].votes.toString()).toBe("0,0,0,0,0,0");
   });
 });
