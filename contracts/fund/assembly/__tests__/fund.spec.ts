@@ -232,6 +232,62 @@ function payProjects(now: u64 = endMonth1 + 30_000, balance: u64 = 1500_00000000
   return result;
 }
 
+/**
+ * the token contracts have a boolean to define if the user is voting
+ * for projects or not. This boolean helps to improve the performance
+ * because during a transfer of tokens, the fund contract will not be
+ * called if the user is not voting. Otherwise it will be called and
+ * the votes are updated.
+ * 
+ * This expect function is used to verify that the KOIN and VHP contracts
+ * receive this notification. It should be used when the user votes
+ * for the first time, or when all votes are removed.
+ */
+function expectNotificationToTokenContracts(voter: Uint8Array, type: string = ""): void {
+  const callContractArguments = MockVM.getCallContractArguments();
+  // expect(callContractArguments.length).toBe(2);
+
+  let k = 0; // position of the call to the koin contract
+  let voting = false;
+  if (type == "first vote") {
+    k = 0;
+    voting = true;
+    expect(callContractArguments.length).toBe(4); // 2 calls to notify, 2 calls to get balance
+  } else if (type == "user removes last vote") {
+    k = 2;
+    voting = false;
+    expect(callContractArguments.length).toBe(4); // 2 calls to get balance, 2 calls to notify
+  } else if (type == "vote removed past project") {
+    k = 0;
+    voting = false;
+    expect(callContractArguments.length).toBe(2); // 2 calls to notify
+  } else {
+    System.fail("invalid type in expectNotificationToTokenContracts");
+  }
+
+  // koin contract is called to notify changes
+  expect(Base58.encode(callContractArguments[k].contract_id)).toBe(Base58.encode(koinAddress));
+  expect(callContractArguments[k].entry_point).toBe(EntryPoint.setVotesKoinosFund);
+  let argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
+    callContractArguments[k].args,
+    fund.set_votes_koinos_fund_arguments.decode
+  );
+  expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
+    `user ${Base58.encode(voter)} voting? ${voting}`
+  );
+
+  // vhp contract is called to notify changes
+  expect(Base58.encode(callContractArguments[k+1].contract_id)).toBe(Base58.encode(vhpAddress));
+  expect(callContractArguments[k+1].entry_point).toBe(EntryPoint.setVotesKoinosFund);
+  argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
+    callContractArguments[k+1].args,
+    fund.set_votes_koinos_fund_arguments.decode
+  );
+  expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
+    `user ${Base58.encode(voter)} voting? ${voting}`
+  );
+}
+
 describe("Fund contract", () => {
   beforeEach(() => {
     MockVM.reset();
@@ -674,7 +730,9 @@ describe("Fund contract", () => {
     System.log("Complete flow: User 6 votes");
 
     // users start to vote
+    MockVM.clearCallContractArguments();
     voteProject(user6, 4, 5, "1000000 KOIN / 0 VHP", false, true, false);
+    expectNotificationToTokenContracts(user6, "first vote");
 
     // check active projects by votes
     projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -772,7 +830,9 @@ describe("Fund contract", () => {
     System.log("Complete flow: User 6 removes vote");
 
     // user removes the vote
+    MockVM.clearCallContractArguments();
     voteProject(user6, 4, 0, "3 KOIN / 0 VHP", false, false, true);
+    expectNotificationToTokenContracts(user6, "user removes last vote");
 
     // check active projects by votes
     projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -1790,33 +1850,16 @@ describe("Fund contract", () => {
     expect(MockVM.getErrorMessage()).toBe("cannot update vote on past project, only remove vote");
 
     // remove vote past project
+    MockVM.clearCallContractArguments();
     voteProject(user10, 2, 0, "35 KOIN / 0 VHP", true, false, false);
+    expectNotificationToTokenContracts(user10, "vote removed past project");
 
     // update balance for a user voting for a past project
     MockVM.clearCallContractArguments();
     updateBalance(user11, "from 1 VHP to 500 VHP");
-    // koin contract is called back to notify that the user11 does not have votes
-    callContractArguments = MockVM.getCallContractArguments();
-    expect(callContractArguments.length).toBe(2);
-    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(callContractArguments[0].entry_point).toBe(EntryPoint.setVotesKoinosFund);
-    let argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
-      callContractArguments[0].args,
-      fund.set_votes_koinos_fund_arguments.decode
-    );
-    expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
-      `user ${Base58.encode(user11)} voting? false`
-    );
-    // vhp contract is called back to notify that the user11 does not have votes
-    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(vhpAddress));
-    expect(callContractArguments[1].entry_point).toBe(EntryPoint.setVotesKoinosFund);
-    argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
-      callContractArguments[1].args,
-      fund.set_votes_koinos_fund_arguments.decode
-    );
-    expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
-      `user ${Base58.encode(user11)} voting? false`
-    );
+    // expect a notification to the token contracts that the user is
+    // not voting anymore (the last vote was for a past project)
+    expectNotificationToTokenContracts(user11, "vote removed past project");
 
     // get votes of user7
     votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user7));
@@ -2001,38 +2044,6 @@ describe("Fund contract", () => {
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     System.log("Complete flow: End of 9th month, payment of projects, check budget");
 
     MockVM.clearCallContractArguments();
@@ -2127,7 +2138,7 @@ describe("Fund contract", () => {
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
-    // todo: test fees with multiple projects
-    // todo: make sure the set_vote_koinos_fund is triggered correctly everywhere
+    // todo: expect events
+    // todo: when new balance is 0 all votes must be removed
   });
 });
