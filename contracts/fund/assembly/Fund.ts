@@ -468,23 +468,8 @@ export class Fund {
       const projectId = u32.parse(StringBytes.bytesToString(keyByVoter.slice(25)));
       const project = this.projects.get(`${projectId}`);
 
-      if (project!.status == fund.project_status.past) {
-        // remove vote from the list of user votes
-        this.projectsByVoter.remove(keyByVoter);
-
-        // remove vote from the weights used by the user
-        weight.weight -= vote.weight;
-        if (weight.weight > 0) {
-          this.weights.put(args.voter!, weight);
-        } else {
-          this.weights.remove(args.voter!);
-          // no votes from the user, notify KOIN and VHP contracts
-          // to avoid calling the koinos fund contract when there
-          // are new updates in the balances
-          koinContract.set_votes_koinos_fund(args.voter!, false);
-          vhpContract.set_votes_koinos_fund(args.voter!, false);
-        }
-      } else {
+      // update total votes for active and upcoming projects
+      if (project!.status != fund.project_status.past) {
         // get ID of the project in the list ordered by votes
         const oldIdByVotes = idByVotes(project!.total_votes, project!.id);
 
@@ -506,6 +491,25 @@ export class Fund {
         } else {
           this.upcomingProjectsByVotes.remove(oldIdByVotes);
           this.upcomingProjectsByVotes.put(newIdByVotes, new fund.existence());
+        }
+      }
+
+      // remove user vote if 0 balance or past project
+      if (args.new_balance == 0 || project!.status == fund.project_status.past) {
+        // remove vote from the list of user votes
+        this.projectsByVoter.remove(keyByVoter);
+
+        // remove vote from the weights used by the user
+        weight.weight -= vote.weight;
+        if (weight.weight > 0) {
+          this.weights.put(args.voter!, weight);
+        } else {
+          this.weights.remove(args.voter!);
+          // no votes from the user, notify KOIN and VHP contracts
+          // to avoid calling the koinos fund contract when there
+          // are new updates in the balances
+          koinContract.set_votes_koinos_fund(args.voter!, false);
+          vhpContract.set_votes_koinos_fund(args.voter!, false);
         }
       }
     }
