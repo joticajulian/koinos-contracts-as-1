@@ -16,11 +16,13 @@ const user7 = Base58.decode("15ckQxzF3VMotq6zd2Lfd9JvCNGSj6vuGF");
 const user8 = Base58.decode("1FM5gXUAJgFJ3s6k5Nni8FAXaoX1Hnph28");
 const user9 = Base58.decode("16gyVkaoeZpSbWDQHouRPGD9eH46GH8cTN");
 const user10 = Base58.decode("1AV8Bvt6T9aari2mVdkQmX9XnDP2XUpxp7");
+const user11 = Base58.decode("1PYbCRDTHNpPZXG5LjeC3ZJS1RHWMS3arT");
 
 enum EntryPoint {
   balanceOf = 0x5c721497, // 1550980247
   mint = 0xdc6f17bb, // 3698268091
   transfer = 0x27f576ca, // 670398154
+  setVotesKoinosFund = 0x2178d8fa // 561567994
 }
 
 const endMonth1 = 1738324800000; // 2025-01-31T12:00:00.000Z
@@ -428,23 +430,23 @@ describe("Fund contract", () => {
     const result = payProjects();
     const fundContract = new Fund();
 
-    const contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(2);
+    const callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(2);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     const args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1000 koin
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     const args1 = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -776,12 +778,12 @@ describe("Fund contract", () => {
     let resultPayProjects = payProjects(endMonth1, u64(10_000e8));
 
     // no payment is done
-    let contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(1); // only 1 call to koin to get balance
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    let callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(1); // only 1 call to koin to get balance
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     let args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
@@ -910,23 +912,23 @@ describe("Fund contract", () => {
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth2, u64(20_000e8), 3);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(4);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(4);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     let argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -940,10 +942,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 18000 koin to project 5
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -957,10 +959,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 18000 koin to project 5
-    expect(Base58.encode(contractCallArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[3].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[3].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[3].args,
+      callContractArguments[3].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1035,23 +1037,23 @@ describe("Fund contract", () => {
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth3, u64(10_888e8), 3);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(4);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(4);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1065,10 +1067,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 12 koin to project 1
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1082,10 +1084,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 18000 koin to project 5
-    expect(Base58.encode(contractCallArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[3].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[3].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[3].args,
+      callContractArguments[3].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1191,23 +1193,23 @@ describe("Fund contract", () => {
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth4, u64(10_000e8), 3);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(4);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(4);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1221,10 +1223,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 12 koin to project 1
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1238,10 +1240,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 18000 koin to project 5
-    expect(Base58.encode(contractCallArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[3].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[3].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[3].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[3].args,
+      callContractArguments[3].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1322,28 +1324,32 @@ describe("Fund contract", () => {
     // the new return proposal is voted
     voteProject(user7, 6, 8, "5000 KOIN / 1000 VHP", false, false, false);
 
+    // few votes in other projects with low value
+    voteProject(user10, 2, 5, "35 KOIN / 0 VHP", false, true, false);
+    voteProject(user11, 2, 10, "0 KOIN / 1 VHP", false, true, false);
+
     System.log("Complete flow: End of 5th month, payment of projects");
 
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth5, u64(10_000e8), 2);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(3);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(3);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1357,10 +1363,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 12 koin to project 1
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1415,7 +1421,7 @@ describe("Fund contract", () => {
       true, // descending
     ));
     expect(projects.projects.length).toBe(5);
-    expect(projects.start_next_page).toBe("00000000000000000999998");
+    expect(projects.start_next_page).toBe("00000018500000000999998");
     expect(projects.projects[0].id).toBe(3);
     expect(projects.projects[0].title).toBe("project 3");
     expect(projects.projects[0].total_votes).toBe(32800000000000);
@@ -1434,31 +1440,31 @@ describe("Fund contract", () => {
     expect(projects.projects[3].votes.toString()).toBe("0,3600000000000,0,0,0,0");
     expect(projects.projects[4].id).toBe(2);
     expect(projects.projects[4].title).toBe("project 2");
-    expect(projects.projects[4].total_votes).toBe(0);
-    expect(projects.projects[4].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[4].total_votes).toBe(18500000000);
+    expect(projects.projects[4].votes.toString()).toBe("0,0,0,0,18500000000,0");
 
     System.log("Complete flow: End of 6th month, payment of projects");
 
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth6, u64(18_888e8), 2);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(3);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(3);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1472,10 +1478,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 12 koin to project 1
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1530,7 +1536,7 @@ describe("Fund contract", () => {
       true, // descending
     ));
     expect(projects.projects.length).toBe(5);
-    expect(projects.start_next_page).toBe("00000000000000000999998");
+    expect(projects.start_next_page).toBe("00000018500000000999998");
     expect(projects.projects[0].id).toBe(3);
     expect(projects.projects[0].title).toBe("project 3");
     expect(projects.projects[0].total_votes).toBe(32800000000000);
@@ -1549,31 +1555,31 @@ describe("Fund contract", () => {
     expect(projects.projects[3].votes.toString()).toBe("3600000000000,0,0,0,0,0");
     expect(projects.projects[4].id).toBe(2);
     expect(projects.projects[4].title).toBe("project 2");
-    expect(projects.projects[4].total_votes).toBe(0);
-    expect(projects.projects[4].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[4].total_votes).toBe(18500000000);
+    expect(projects.projects[4].votes.toString()).toBe("0,0,0,18500000000,0,0");
 
     System.log("Complete flow: End of 7th month, payment of projects, some votes expire");
 
     MockVM.clearCallContractArguments();
     resultPayProjects = payProjects(endMonth7, u64(27_776e8), 2);
 
-    contractCallArguments = MockVM.getCallContractArguments();
-    expect(contractCallArguments.length).toBe(3);
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(3);
 
     // KOIN contract called to get balance of fund contract
-    expect(Base58.encode(contractCallArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[0].entry_point).toBe(EntryPoint.balanceOf);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.balanceOf);
     args0 = Protobuf.decode<kcs4.balance_of_arguments>(
-      contractCallArguments[0].args,
+      callContractArguments[0].args,
       kcs4.balance_of_arguments.decode
     );
     expect(Base58.encode(args0.owner)).toBe(Base58.encode(fundAddress));
 
     // KOIN contract called to make a payment of 1100 koin to project 3
-    expect(Base58.encode(contractCallArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[1].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[1].args,
+      callContractArguments[1].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1587,10 +1593,10 @@ describe("Fund contract", () => {
     ].join(" "));
 
     // KOIN contract called to make a payment of 12 koin to project 1
-    expect(Base58.encode(contractCallArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
-    expect(contractCallArguments[2].entry_point).toBe(EntryPoint.transfer);
+    expect(Base58.encode(callContractArguments[2].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[2].entry_point).toBe(EntryPoint.transfer);
     argsT = Protobuf.decode<kcs4.transfer_arguments>(
-      contractCallArguments[2].args,
+      callContractArguments[2].args,
       kcs4.transfer_arguments.decode
     );
     expect([
@@ -1640,8 +1646,8 @@ describe("Fund contract", () => {
     expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
     expect(projects.projects[1].id).toBe(2);
     expect(projects.projects[1].title).toBe("project 2");
-    expect(projects.projects[1].total_votes).toBe(0);
-    expect(projects.projects[1].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].total_votes).toBe(18500000000);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,18500000000,0,0");
 
     // check upcoming projects by votes
     projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -1716,5 +1722,105 @@ describe("Fund contract", () => {
     expect(votes.votes[0].project_id).toBe(3);
     expect(votes.votes[0].weight).toBe(20);
     expect(votes.votes[0].expiration).toBe(endMonth7); // this vote expired but still exists here
+
+    // get votes of user10
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(2); // is now a past project
+    expect(votes.votes[0].weight).toBe(5);
+    expect(votes.votes[0].expiration).toBe(endMonth10); // this vote has not expired but the project ended
+
+    // get votes of user11
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user11));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(2); // is now a past project
+    expect(votes.votes[0].weight).toBe(10);
+    expect(votes.votes[0].expiration).toBe(endMonth10); // this vote has not expired but the project ended
+
+    System.log("Complete flow: Users do different things with the expired votes: Do nothing, Renew the vote, Remove the vote, Update the balance");
+
+    // renew vote
+    voteProject(user8, 1, 14, "7000 KOIN / 0 VHP", false, false, false);
+    
+    // remove vote
+    voteProject(user7, 3, 0, "5000 KOIN / 1000 VHP", false, false, true);
+    
+    // update balance
+    MockVM.clearCallContractArguments();
+    updateBalance(user9, "from 500 VHP to 1500 VHP");
+    MockVM.commitTransaction();
+    expect(() => {
+      MockVM.getCallContractArguments();
+    }).toThrow(); // token contracts are not called back
+
+    // try to renew vote of the past project
+    expect(() => {
+      voteProject(user10, 2, 5, "35 KOIN / 0 VHP", true, false, false);
+    }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("cannot update vote on past project, only remove vote");
+
+    // remove vote past project
+    voteProject(user10, 2, 0, "35 KOIN / 0 VHP", true, false, false);
+
+    // update balance for a user voting for a past project
+    MockVM.clearCallContractArguments();
+    updateBalance(user11, "from 1 VHP to 500 VHP");
+    // koin contract is called back to notify that the user11 does not have votes
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(2);
+    expect(Base58.encode(callContractArguments[0].contract_id)).toBe(Base58.encode(koinAddress));
+    expect(callContractArguments[0].entry_point).toBe(EntryPoint.setVotesKoinosFund);
+    let argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
+      callContractArguments[0].args,
+      fund.set_votes_koinos_fund_arguments.decode
+    );
+    expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
+      `user ${Base58.encode(user11)} voting? false`
+    );
+    // vhp contract is called back to notify that the user11 does not have votes
+    expect(Base58.encode(callContractArguments[1].contract_id)).toBe(Base58.encode(vhpAddress));
+    expect(callContractArguments[1].entry_point).toBe(EntryPoint.setVotesKoinosFund);
+    argsSetVotesKF = Protobuf.decode<fund.set_votes_koinos_fund_arguments>(
+      callContractArguments[1].args,
+      fund.set_votes_koinos_fund_arguments.decode
+    );
+    expect(`user ${Base58.encode(argsSetVotesKF.account!)} voting? ${argsSetVotesKF.votes_koinos_fund}`).toBe(
+      `user ${Base58.encode(user11)} voting? false`
+    );
+
+    // get votes of user7
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user7));
+    expect(votes.votes.length).toBe(2); // vote to project 3 has been removed
+    expect(votes.votes[0].project_id).toBe(5);
+    expect(votes.votes[0].weight).toBe(6);
+    expect(votes.votes[0].expiration).toBe(endMonth7); // this vote expired but still exists here
+    expect(votes.votes[1].project_id).toBe(6);
+    expect(votes.votes[1].weight).toBe(8);
+    expect(votes.votes[1].expiration).toBe(endMonth10);
+
+    // get votes of user8
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user8));
+    expect(votes.votes.length).toBe(2);
+    expect(votes.votes[0].project_id).toBe(1);
+    expect(votes.votes[0].weight).toBe(14);
+    expect(votes.votes[0].expiration).toBe(endMonth13); // vote renewed
+    expect(votes.votes[1].project_id).toBe(3);
+    expect(votes.votes[1].weight).toBe(6);
+    expect(votes.votes[1].expiration).toBe(endMonth9);
+
+    // get votes of user9
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user9));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(3);
+    expect(votes.votes[0].weight).toBe(20);
+    expect(votes.votes[0].expiration).toBe(endMonth7); // this vote expired but still exists here
+
+    // get votes of user10
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(0); // user removed the vote, of the past project, in a transaction
+
+    // get votes of user11
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(0); // the contract removed the vote, of the past project, automatically after updating the balance
   });
 });
