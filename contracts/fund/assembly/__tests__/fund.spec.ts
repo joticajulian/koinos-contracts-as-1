@@ -493,6 +493,36 @@ describe("Fund contract", () => {
     expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,2400000000000,0");
   });
 
+  it("should increase the fee exponentially with more projects", () => {
+    configureFund();
+    MockVM.setHeadInfo(new chain.head_info(null, 0));
+    const year = u64(365 * 24 * 60 * 60 * 1000);
+
+    // expected fee for a fee_denominator = 10000.
+    // This denominator can be updated with a gov proposal
+    const expectedFee: u64[] = [
+      3153600000,    // project #10:     31.54 koin
+      25228800000,   // project #20:    252.29 koin
+      85147200000,   // project #30:    851.47 koin
+      201830400000,  // project #40:   2018.30 koin
+      394200000000,  // project #50:   3942.00 koin
+    ];
+
+    for (let i = 1; i <= 50; i += 1) {
+      if (i % 10 == 0) {
+        const fee = expectedFee[i/10 - 1];
+        expect(() => {
+          submitProject(user1, user1, "project", u64(100e8), 0, year, 0);
+        }).toThrow();
+        expect(MockVM.getErrorMessage()).toBe(`the fee must be at least ${fee}`);
+        submitProject(user1, user1, "project", u64(100e8), 0, year, fee);
+      } else {
+        submitProject(user1, user1, "project", u64(100e8), 0, year, u64(1e13));
+      }
+      MockVM.commitTransaction();
+    }
+  });
+
   it("should perform a complete flow with different project and votes", () => {
     configureFund();
     const fundContract = new Fund();
