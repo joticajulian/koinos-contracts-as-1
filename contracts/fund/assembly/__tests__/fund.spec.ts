@@ -1820,7 +1820,64 @@ describe("Fund contract", () => {
     expect(votes.votes.length).toBe(0); // user removed the vote, of the past project, in a transaction
 
     // get votes of user11
-    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user11));
     expect(votes.votes.length).toBe(0); // the contract removed the vote, of the past project, automatically after updating the balance
+
+    // check past projects by date
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.past,
+      fund.order_projects_by.by_date,
+      null,
+      10
+    ));
+    expect(projects.projects.length).toBe(2);
+    expect(projects.start_next_page).toBe("1752537600000000002");
+    expect(projects.projects[0].id).toBe(4);
+    expect(projects.projects[0].title).toBe("project 4");
+    expect(projects.projects[0].total_votes).toBe(0);
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,0");
+    expect(projects.projects[1].id).toBe(2);
+    expect(projects.projects[1].title).toBe("project 2");
+    expect(projects.projects[1].total_votes).toBe(18500000000); // individual votes are gone but we keep the total
+    expect(projects.projects[1].votes.toString()).toBe("0,0,0,18500000000,0,0");
+
+    // check upcoming projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.upcoming,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+    expect(projects.projects.length).toBe(0);
+    expect(projects.start_next_page).toBe("99999999999999999999999");
+
+    // check active projects by votes
+    projects = fundContract.get_projects(new fund.get_projects_arguments(
+      fund.project_status.active,
+      fund.order_projects_by.by_votes,
+      "99999999999999999999999",
+      10,
+      true, // descending
+    ));
+
+    expect(projects.projects.length).toBe(4);
+    expect(projects.start_next_page).toBe("00000000000000000999995");
+    expect(projects.projects[0].id).toBe(1);
+    expect(projects.projects[0].title).toBe("project 1");
+    expect(projects.projects[0].total_votes).toBe(9800000000000); // user8 renewed the vote and now this project can receive payments again
+    expect(projects.projects[0].votes.toString()).toBe("0,0,0,0,0,9800000000000");
+    expect(projects.projects[1].id).toBe(6);
+    expect(projects.projects[1].title).toBe("Return project");
+    expect(projects.projects[1].total_votes).toBe(4800000000000);
+    expect(projects.projects[1].votes.toString()).toBe("0,0,4800000000000,0,0,0");
+    expect(projects.projects[2].id).toBe(3);
+    expect(projects.projects[2].title).toBe("project 3");         // user7 user8 and user9 were voting for this project:
+    expect(projects.projects[2].total_votes).toBe(4200000000000); // user7 removed the vote after the expiration, user8 renewed it, and user9 updated the balance without renewing it.
+    expect(projects.projects[2].votes.toString()).toBe("0,4200000000000,0,0,0,0"); // then only the votes of user8 are effective
+    expect(projects.projects[3].id).toBe(5);
+    expect(projects.projects[3].title).toBe("project 5"); // user7 is still voting for this project
+    expect(projects.projects[3].total_votes).toBe(0);     // but he did nothing after the expiration then it is not effective
+    expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
   });
 });
