@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Julian Gonzalez (joticajulian@gmail.com)
 
-import { Arrays, StringBytes, authority, chain, error, kcs4, Protobuf, Storage, System, system_calls, u128 } from "@koinos/sdk-as";
+import { Arrays, StringBytes, chain, kcs4, Protobuf, Storage, System } from "@koinos/sdk-as";
 import { fund } from "./proto/fund";
 
 const GLOBAL_VARS_SPACE_ID = 0;
@@ -368,6 +368,8 @@ export class Fund {
     const koinBalance = koinContract.balance_of(args.voter!);
     const vhpBalance = vhpContract.balance_of(args.voter!);
 
+    System.require(koinBalance + vhpBalance > 0, "the voter does not have KOIN or VHP balance");
+
     // if vote already exist update weight and expiration
     if (vote) {
       // we remove the weight previously used, and the new weight will be added later
@@ -438,14 +440,18 @@ export class Fund {
 
   update_votes(args: fund.update_votes_arguments): void {
     const caller = System.getCaller();
-    System.require(caller, "caller of update votes must be KOIN or VHP contract");
+    System.require(caller, "no caller. Caller of update votes must be KOIN or VHP contract");
 
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
 
     const koinAddress = System.getContractAddress("koin");
     const vhpAddress = System.getContractAddress("vhp");
-    System.require(caller.caller != koinAddress && caller.caller != vhpAddress, "caller of update votes must be KOIN or VHP contract");
+    System.require(
+      Arrays.equal(caller.caller, koinAddress) ||
+      Arrays.equal(caller.caller, vhpAddress),
+      "caller of update votes must be KOIN or VHP contract"
+    );
 
     const koinContract = new Token(koinAddress);
     const vhpContract = new Token(vhpAddress);
@@ -455,6 +461,17 @@ export class Fund {
 
     // get weights used by the user
     const weight = this.weights.get(args.voter!)!;
+
+    let emptyBalanceBothContracts = false;
+    if (args.new_balance == 0) {
+      if (Arrays.equal(caller.caller, koinAddress)) {
+        const vhpBalance = vhpContract.balance_of(args.voter!);
+        if (vhpBalance == 0) emptyBalanceBothContracts = true;
+      } else {
+        const koinBalance = koinContract.balance_of(args.voter!);
+        if (koinBalance == 0) emptyBalanceBothContracts = true;
+      }
+    }
 
     while (true) {
       const voteRecord = this.projectsByVoter.getNext(keyByVoter);
@@ -495,7 +512,7 @@ export class Fund {
       }
 
       // remove user vote if 0 balance or past project
-      if (args.new_balance == 0 || project!.status == fund.project_status.past) {
+      if (emptyBalanceBothContracts || project!.status == fund.project_status.past) {
         // remove vote from the list of user votes
         this.projectsByVoter.remove(keyByVoter);
 
@@ -642,6 +659,8 @@ export class Fund {
       }
       nextId = StringBytes.bytesToString(active.key!);
     }
+
+    // TODO: build for testnet (daily payments)
 
     // Calculate last day of the month (at noon) 6 months from now
     const date = new Date(i64(now));

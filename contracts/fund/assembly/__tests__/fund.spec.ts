@@ -169,22 +169,47 @@ function voteProject(
 
 function updateBalance(
   voter: Uint8Array = user2,
-  change: string = "from 1000 KOIN to 2000 KOIN"
+  change: string = "from 1000 KOIN to 2000 KOIN",
+  otherToken: string = "0 VHP"
 ): void {
   const fundContract = new Fund();
   // example: "from 1000 KOIN to 1500 KOIN"
   const values = change.split(" ");
   const tokenAddress = values[2] == "KOIN" ? koinAddress : vhpAddress;
+  const oldBalance = u64.parse(values[1]) * 100000000;
+  const newBalance = u64.parse(values[4]) * 100000000;
+
+  const balanceOtherToken = u64.parse(
+    otherToken.split(" ")[0]
+  ) * 100000000;
+
+  const callContractResults: system_calls.exit_arguments[] = [];
+
+  if (newBalance == 0) {
+    // result when getting KOIN or VHP balance of the fund contract
+    callContractResults.push(
+      new system_calls.exit_arguments(0, new chain.result(
+        Protobuf.encode(
+          new kcs4.balance_of_result(balanceOtherToken),
+          kcs4.balance_of_result.encode
+        )
+      ))
+    );
+  }
+
+  // result when calling set_votes_koinos_fund in koin contract (if any)
+  callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+
+  // result when calling set_votes_koinos_fund in vhp contract (if any)
+  callContractResults.push(new system_calls.exit_arguments(0, new chain.result()));
+
+  MockVM.setCallContractResults(callContractResults);
 
   // special function triggered by KOIN or VHP contract
   MockVM.setCaller(new chain.caller_data(tokenAddress, chain.privilege.user_mode));
 
   fundContract.update_votes(
-    new fund.update_votes_arguments(
-      voter,
-      u64.parse(values[4]) * 100000000,
-      u64.parse(values[1]) * 100000000
-    )
+    new fund.update_votes_arguments(voter, newBalance, oldBalance)
   );
 
   // restore caller to user mode
@@ -1403,6 +1428,56 @@ describe("Fund contract", () => {
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
+    System.log("Complete flow: User votes but then empties his wallet completely when making a transfer");
+
+    MockVM.commitTransaction();
+    expect(() => {
+      voteProject(user10, 2, 20, "0 KOIN / 0 VHP", false, true, false);
+    }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("the voter does not have KOIN or VHP balance");
+
+    voteProject(user10, 2, 20, "0 KOIN / 100 VHP", false, true, false);
+    updateBalance(user10, "from 0 KOIN to 100 KOIN");
+
+    let project = fundContract.get_project(new fund.get_project_arguments(2));
+    expect(project.id).toBe(2);
+    expect(project.title).toBe("project 2");
+    expect(project.total_votes).toBe(400000000000);
+    expect(project.votes.toString()).toBe("0,0,0,0,0,400000000000");
+
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(2);
+    expect(votes.votes[0].weight).toBe(20);
+    expect(votes.votes[0].expiration).toBe(endMonth10);
+
+    updateBalance(user10, "from 100 KOIN to 0 KOIN", "100 VHP");
+    // the user still has 100 VHP and he is voting
+
+    project = fundContract.get_project(new fund.get_project_arguments(2));
+    expect(project.id).toBe(2);
+    expect(project.title).toBe("project 2");
+    expect(project.total_votes).toBe(200000000000);
+    expect(project.votes.toString()).toBe("0,0,0,0,0,200000000000");
+
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(1);
+    expect(votes.votes[0].project_id).toBe(2);
+    expect(votes.votes[0].weight).toBe(20);
+    expect(votes.votes[0].expiration).toBe(endMonth10);
+
+    updateBalance(user10, "from 100 VHP to 0 VHP", "0 KOIN");
+    // the user has 0 in KOIN and VHP, the vote should be removed
+
+    project = fundContract.get_project(new fund.get_project_arguments(2));
+    expect(project.id).toBe(2);
+    expect(project.title).toBe("project 2");
+    expect(project.total_votes).toBe(0);
+    expect(project.votes.toString()).toBe("0,0,0,0,0,0");
+
+    votes = fundContract.get_user_votes(new fund.get_user_votes_arguments(user10));
+    expect(votes.votes.length).toBe(0);
+
     System.log("Complete flow: New project submitted to not spend, return the savings to the Fund contract");
 
     submitProject(user1, fundAddress, "Return project", u64(500_000_000e8),
@@ -2139,6 +2214,6 @@ describe("Fund contract", () => {
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
     // todo: expect events
-    // todo: when new balance is 0 all votes must be removed
+    // todo: test update votes can only be called by koin or vhp contracts
   });
 });
