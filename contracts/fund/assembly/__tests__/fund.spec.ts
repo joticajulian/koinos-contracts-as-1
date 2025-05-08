@@ -458,6 +458,35 @@ describe("Fund contract", () => {
     expect(votes.votes[0].expiration).toBe(endMonth6);
   });
 
+  it("should accept only authorized callers for the update in the balance", () => {
+    configureFund();
+    submitProject();
+    voteProject();
+
+    MockVM.commitTransaction();
+
+    // no caller
+    MockVM.setCaller(new chain.caller_data());
+
+    expect(() => {
+      const fundContract = new Fund();
+      fundContract.update_votes(
+        new fund.update_votes_arguments(user2, 100_00000000, 10_00000000)
+      )
+    }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("caller of update votes must be KOIN or VHP contract");
+
+    // caller not authorized
+    MockVM.setCaller(new chain.caller_data(user2, chain.privilege.user_mode));
+    expect(() => {
+      const fundContract = new Fund();
+      fundContract.update_votes(
+        new fund.update_votes_arguments(user2, 100_00000000, 10_00000000)
+      )
+    }).toThrow();
+    expect(MockVM.getErrorMessage()).toBe("caller of update votes must be KOIN or VHP contract");
+  });
+
   it("should update votes after an update in the balance", () => {
     configureFund();
     submitProject();
@@ -2214,6 +2243,5 @@ describe("Fund contract", () => {
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
 
     // todo: expect events
-    // todo: test update votes can only be called by koin or vhp contracts
   });
 });
