@@ -355,6 +355,25 @@ describe("Fund contract", () => {
       new fund.get_project_arguments(1)
     );
 
+    const events = MockVM.getEvents();
+    expect(events.length).toBe(1);
+    expect(events[0].name).toBe("fund.submit_project_event");
+    expect(events[0].impacted.length).toBe(2);
+    expect(Base58.encode(events[0].impacted[0])).toBe(Base58.encode(user1));
+    expect(Base58.encode(events[0].impacted[1])).toBe(Base58.encode(user1));
+    const eventArguments = Protobuf.decode<fund.submit_project_arguments>(
+      events[0].data,
+      fund.submit_project_arguments.decode
+    );
+    expect(Base58.encode(eventArguments.creator!)).toBe(Base58.encode(user1));
+    expect(Base58.encode(eventArguments.beneficiary!)).toBe(Base58.encode(user1));
+    expect(eventArguments.title).toBe("My project 1");
+    expect(eventArguments.description).toBe("My description for title My project 1");
+    expect(eventArguments.monthly_payment).toBe(1000_00000000);
+    expect(eventArguments.start_date).toBe(1735689600000);
+    expect(eventArguments.end_date).toBe(1767225600000);
+    expect(eventArguments.fee).toBe(5_00000000);
+
     expect(Base58.encode(project.creator!)).toBe(Base58.encode(user1));
     expect(Base58.encode(project.beneficiary!)).toBe(Base58.encode(user1));
     expect(project.title).toBe("My project 1");
@@ -434,8 +453,23 @@ describe("Fund contract", () => {
   it("should vote for a project", () => {
     configureFund();
     submitProject();
+
+    MockVM.clearEvents();
     voteProject();
     const fundContract = new Fund();
+
+    const events = MockVM.getEvents();
+    expect(events.length).toBe(1);
+    expect(events[0].name).toBe("fund.update_vote_event");
+    expect(events[0].impacted.length).toBe(1);
+    expect(Base58.encode(events[0].impacted[0])).toBe(Base58.encode(user2));
+    const eventArguments = Protobuf.decode<fund.update_vote_arguments>(
+      events[0].data,
+      fund.update_vote_arguments.decode
+    );
+    expect(eventArguments.project_id).toBe(1);
+    expect(Base58.encode(eventArguments.voter!)).toBe(Base58.encode(user2));
+    expect(eventArguments.weight).toBe(20);
 
     // check active projects by votes
     const projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -884,9 +918,23 @@ describe("Fund contract", () => {
     System.log("Complete flow: User 6 removes vote");
 
     // user removes the vote
+    MockVM.clearEvents();
     MockVM.clearCallContractArguments();
     voteProject(user6, 4, 0, "3 KOIN / 0 VHP", false, false, true);
     expectNotificationToTokenContracts(user6, "user removes last vote");
+
+    const events = MockVM.getEvents();
+    expect(events.length).toBe(1);
+    expect(events[0].name).toBe("fund.update_vote_event");
+    expect(events[0].impacted.length).toBe(1);
+    expect(Base58.encode(events[0].impacted[0])).toBe(Base58.encode(user6));
+    const eventArguments = Protobuf.decode<fund.update_vote_arguments>(
+      events[0].data,
+      fund.update_vote_arguments.decode
+    );
+    expect(eventArguments.project_id).toBe(4);
+    expect(Base58.encode(eventArguments.voter!)).toBe(Base58.encode(user6));
+    expect(eventArguments.weight).toBe(0);
 
     // check active projects by votes
     projects = fundContract.get_projects(new fund.get_projects_arguments(
@@ -2241,7 +2289,5 @@ describe("Fund contract", () => {
     expect(projects.projects[3].title).toBe("project 5");
     expect(projects.projects[3].total_votes).toBe(0);
     expect(projects.projects[3].votes.toString()).toBe("0,0,0,0,0,0");
-
-    // todo: expect events
   });
 });

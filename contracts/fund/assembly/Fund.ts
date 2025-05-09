@@ -291,7 +291,7 @@ export class Fund {
     this.globalVars.put(globalVars!);
 
     System.event(
-      "fund.submit_project_arguments",
+      "fund.submit_project_event",
       Protobuf.encode(
         args,
         fund.submit_project_arguments.encode
@@ -342,7 +342,7 @@ export class Fund {
       }
 
       System.event(
-        "fund.update_vote_arguments",
+        "fund.update_vote_event",
         Protobuf.encode(
           args,
           fund.update_vote_arguments.encode
@@ -427,7 +427,7 @@ export class Fund {
     }
 
     System.event(
-      "fund.update_vote_arguments",
+      "fund.update_vote_event",
       Protobuf.encode(
         args,
         fund.update_vote_arguments.encode
