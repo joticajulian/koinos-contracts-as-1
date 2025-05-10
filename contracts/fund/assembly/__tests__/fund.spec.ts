@@ -270,7 +270,6 @@ function payProjects(now: u64 = endMonth1 + 30_000, balance: u64 = 1500_00000000
  */
 function expectNotificationToTokenContracts(voter: Uint8Array, type: string = ""): void {
   const callContractArguments = MockVM.getCallContractArguments();
-  // expect(callContractArguments.length).toBe(2);
 
   let k = 0; // position of the call to the koin contract
   let voting = false;
