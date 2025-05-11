@@ -3,8 +3,9 @@
 // Julian Gonzalez (joticajulian@gmail.com)
 // Koinos Group, Inc. (contact@koinos.group)
 
-import { Arrays, authority, chain, error, kcs4, Protobuf, Storage, System, system_calls, u128, fund } from "@koinos/sdk-as";
+import { Arrays, authority, chain, error, kcs4, Protobuf, Storage, System, system_calls, u128 } from "@koinos/sdk-as";
 import { koin } from "./proto/koin";
+import { fund } from "./proto/fund";
 
 const SUPPLY_SPACE_ID = 0;
 const BALANCES_SPACE_ID = 1;
@@ -172,7 +173,7 @@ export class Koin {
     return new system_calls.get_account_rc_result(balanceObj.mana);
   }
 
-  set_votes_koinos_fund(args: koin.set_votes_koinos_fund_arguments): void {
+  set_votes_koinos_fund(args: fund.set_votes_koinos_fund_arguments): void {
     const caller = System.getCaller();
     System.require(
       Arrays.equal(

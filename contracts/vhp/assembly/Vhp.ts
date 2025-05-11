@@ -3,8 +3,9 @@
 // Julian Gonzalez (joticajulian@gmail.com)
 // Koinos Group, Inc. (contact@koinos.group)
 
-import { Arrays, authority, chain, error, kcs4, Storage, System, Protobuf, fund } from "@koinos/sdk-as";
+import { Arrays, authority, chain, error, kcs4, Storage, System, Protobuf } from "@koinos/sdk-as";
 import { vhp } from "./proto/vhp";
+import { fund } from "./proto/fund";
 
 /**
  * To prevent exploiting the PoB algorithm, the VHP has a "delayed" transfer system built in.
@@ -195,7 +196,7 @@ export class Vhp {
     return result;
   }
 
-  set_votes_koinos_fund(args: koin.set_votes_koinos_fund_arguments): void {
+  set_votes_koinos_fund(args: fund.set_votes_koinos_fund_arguments): void {
     const caller = System.getCaller();
     System.require(
       Arrays.equal(
