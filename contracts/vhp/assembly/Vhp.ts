@@ -70,7 +70,7 @@ class KoinosFund {
   update_votes(account: Uint8Array, newBalance: u64, oldBalance: u64): void {
     System.call(
       Constants.KoinosFundContractId(),
-      0x00000000,
+      0x8ad742c2,
       Protobuf.encode(
         new fund.update_votes_arguments(
           account,

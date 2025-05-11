@@ -104,7 +104,6 @@ class VHP extends Token {
 }
 
 class KoinosFund {
-  // todo: define entry point
   pay_projects(): fund.pay_projects_result {
     const callRes = System.call(
       Constants.KoinosFundContractId(),
