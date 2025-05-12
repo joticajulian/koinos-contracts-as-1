@@ -67,7 +67,6 @@ namespace Constants {
 }
 
 class KoinosFund {
-  // todo: define entry point
   update_votes(account: Uint8Array, newBalance: u64, oldBalance: u64): void {
     System.call(
       Constants.KoinosFundContractId(),

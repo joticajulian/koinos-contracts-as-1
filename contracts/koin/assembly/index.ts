@@ -1,6 +1,5 @@
 import { System, Protobuf, authority, kcs4, system_calls} from "@koinos/sdk-as";
 import { Koin as ContractClass } from "./Koin";
-import { koin } from "./proto/koin";
 import { fund } from "./proto/fund";
 
 export function main(): i32 {

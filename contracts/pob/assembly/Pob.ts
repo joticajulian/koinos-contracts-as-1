@@ -22,7 +22,6 @@ namespace Constants {
   export const INITIAL_DIFFICULTY_BITS:u8 = BUILD_FOR_TESTING ? 44 : 58;
   export const ONE_HUNDRED_PERCENT: u32 = 1000000;
   export const MILLISECONDS_PER_YEAR = 31536000000;
-  export const MILLISECONDS_PER_MONTH = 2628000000;
   export const DELAY_BLOCKS: u64 = 20;
 
   let contractId: Uint8Array | null = null;

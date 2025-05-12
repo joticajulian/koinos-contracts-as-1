@@ -661,17 +661,25 @@ export class Fund {
     }
 
     // TODO: build for testnet (daily payments)
+    let newPaymentTime: u64;
 
-    // Calculate last day of the month (at noon) 6 months from now
-    const date = new Date(i64(now));
-    let year = date.getUTCFullYear();
-    let month = date.getUTCMonth();
-    month += 7;
-    if (month > 11) {
-      month -= 12;
-      year += 1;
+    if (BUILD_FOR_TESTING) {
+      // TESTNET
+      // Payment per day. Calculate the time of 6th day (new payment time in the list)
+      newPaymentTime = now + 6 * 24 * 60 * 60 * 1000;
+    } else {
+      // MAINNET
+      // Calculate last day of the month (at noon) 6 months from now
+      const date = new Date(i64(now));
+      let year = date.getUTCFullYear();
+      let month = date.getUTCMonth();
+      month += 7;
+      if (month > 11) {
+        month -= 12;
+        year += 1;
+      }
+      newPaymentTime = Date.UTC(year, month, 1, 0, 0, 0, 0) - 12 * 60 * 60 * 1000;
     }
-    const newPaymentTime = Date.UTC(year, month, 1, 0, 0, 0, 0) - 12 * 60 * 60 * 1000;
 
     // rotate the 6 payment times: Remove the current one and create the new one
     globalVars!.payment_times.shift();
