@@ -121,6 +121,15 @@ export function main(): i32 {
       break;
     }
 
+    // authorize
+    case 0x4a2dbd90: {
+      retbuf = Protobuf.encode(
+        new authority.authorize_result(System.checkSystemAuthority()),
+        authority.authorize_result.encode
+      )
+      break;
+    }
+
     default:
       System.exit(1);
       break;
