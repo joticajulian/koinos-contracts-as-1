@@ -1,4 +1,4 @@
-import {u128} from 'as-bignum';
+import {u128} from 'as-bignum/assembly';
 import { chain, System, Protobuf, authority, system_calls, Token, Crypto, pob, vhp, StringBytes } from "@koinos/sdk-as";
 import { fund } from "./proto/fund";
 
@@ -301,7 +301,7 @@ export class Pob {
   update_consensus_parameters(args: pob.update_consensus_parameters_arguments): pob.update_consensus_parameters_result {
     System.require(System.checkSystemAuthority(), "caller must have system authority to update consensus parameters");
 
-    System.putObject(State.Space.Metadata(), Constants.CONSENSUS_PARAMS_KEY, args.value, pob.consensus_parameters.encode);
+    System.putObject(State.Space.Metadata(), Constants.CONSENSUS_PARAMS_KEY, args.value!, pob.consensus_parameters.encode);
 
     return new pob.update_consensus_parameters_result();
   }

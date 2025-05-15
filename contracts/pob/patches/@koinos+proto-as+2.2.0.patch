@@ -1,5 +1,5 @@
 diff --git a/node_modules/@koinos/proto-as/assembly/koinos/contracts/pob/pob.ts b/node_modules/@koinos/proto-as/assembly/koinos/contracts/pob/pob.ts
-index 13100e9..dba8133 100644
+index 13100e9..76a1cb4 100644
 --- a/node_modules/@koinos/proto-as/assembly/koinos/contracts/pob/pob.ts
 +++ b/node_modules/@koinos/proto-as/assembly/koinos/contracts/pob/pob.ts
 @@ -140,6 +140,11 @@ export namespace pob {
