@@ -1,6 +1,6 @@
 import { System, Protobuf, authority } from "@koinos/sdk-as";
-import { Bytelauncher as ContractClass } from "./Bytelauncher";
-import { bytelauncher } from "./proto/bytelauncher";
+import { Bytestorage as ContractClass } from "./Bytestorage";
+import { bytestorage } from "./proto/bytestorage";
 
 export function main(): i32 {
   const contractArgs = System.getArguments();
@@ -9,13 +9,27 @@ export function main(): i32 {
   const c = new ContractClass();
 
   switch (contractArgs.entry_point) {
-    // upload_contract
-    case 0x877511dd: {
-      const args = Protobuf.decode<bytelauncher.upload_contract_arguments>(
+    // get_bytecode
+    case 0xb61ca37c: {
+      const args = Protobuf.decode<bytestorage.get_bytecode_arguments>(
         contractArgs.args,
-        bytelauncher.upload_contract_arguments.decode
+        bytestorage.get_bytecode_arguments.decode
       );
-      c.upload_contract(args);
+      const res = c.get_bytecode(args);
+      retbuf = Protobuf.encode(
+        res,
+        bytestorage.bytecode.encode
+      );
+      break;
+    }
+
+    // save_bytecode
+    case 0xbc0ea29c: {
+      const args = Protobuf.decode<bytestorage.bytecode>(
+        contractArgs.args,
+        bytestorage.bytecode.decode
+      );
+      c.save_bytecode(args);
       retbuf = new Uint8Array(0);
       break;
     }
