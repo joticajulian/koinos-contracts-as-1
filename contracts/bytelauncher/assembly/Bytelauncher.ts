@@ -5,7 +5,10 @@ export class Bytelauncher {
   upload_contract(args: bytelauncher.upload_contract_arguments): void {
     System.require(System.checkSystemAuthority(), "caller must have system authority to upload contract");
 
-    const bytestorageAddress = Base58.decode("todo");
+    const bytestorageAddress = BUILD_FOR_TESTING
+      ? Base58.decode("1BTjeKBmPgTarD2Smxw1g7K8kbydcdZVWW")  // harbinger
+      : Base58.decode("1GArWiQwb1Wn1yB7VBSUfyhJr4Yv9SW8Pj"); // mainnet
+
     const callRes = System.call(
       bytestorageAddress,
       0xb61ca37c, // get_bytecode
