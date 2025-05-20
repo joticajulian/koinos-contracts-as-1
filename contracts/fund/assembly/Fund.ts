@@ -185,7 +185,7 @@ export class Fund {
         const date = new Date(i64(newPaymentTime));
         let year = date.getUTCFullYear();
         let month = date.getUTCMonth();
-        month += i > 0 ? 2 : 1;
+        month += i > 0 ? 2 : 1; 
         if (month > 11) {
           month -= 12;
           year += 1;
