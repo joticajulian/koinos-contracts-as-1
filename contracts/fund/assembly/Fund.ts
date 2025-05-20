@@ -170,7 +170,31 @@ export class Fund {
     let globalVars = this.globalVars.get();
     if (!globalVars) globalVars = new fund.global_vars();
     globalVars.fee_denominator = args.fee_denominator;
-    globalVars.payment_times = args.payment_times;
+
+    let newPaymentTime = System.getHeadInfo().head_block_time;
+    globalVars.payment_times = [];
+
+    for (let i = 0; i < 6; i += 1) {
+      if (BUILD_FOR_TESTING) {
+        // TESTNET
+        // Payment per day
+        newPaymentTime += 24 * 60 * 60 * 1000;
+      } else {
+        // MAINNET
+        // Calculate last day of the month (at noon)
+        const date = new Date(i64(newPaymentTime));
+        let year = date.getUTCFullYear();
+        let month = date.getUTCMonth();
+        month += i > 0 ? 2 : 1;
+        if (month > 11) {
+          month -= 12;
+          year += 1;
+        }
+        newPaymentTime = Date.UTC(year, month, 1, 0, 0, 0, 0) - 12 * 60 * 60 * 1000;
+      }
+      globalVars.payment_times.push(newPaymentTime);
+    }
+
     this.globalVars.put(globalVars);
   }
 
@@ -660,7 +684,6 @@ export class Fund {
       nextId = StringBytes.bytesToString(active.key!);
     }
 
-    // TODO: build for testnet (daily payments)
     let newPaymentTime: u64;
 
     if (BUILD_FOR_TESTING) {

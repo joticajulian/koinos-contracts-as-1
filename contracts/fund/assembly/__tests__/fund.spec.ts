@@ -45,17 +45,7 @@ function configureFund(): void {
   // configure fund contract
   MockVM.setSystemAuthority(true);
   const fundContract = new Fund();
-  const setGlobalVarsArgs = new fund.set_global_vars_arguments(
-    10000,
-    [
-      endMonth1,
-      endMonth2,
-      endMonth3,
-      endMonth4,
-      endMonth5,
-      endMonth6,
-    ]
-  );
+  const setGlobalVarsArgs = new fund.set_global_vars_arguments(10000);
   fundContract.set_global_vars(setGlobalVarsArgs);
   MockVM.setSystemAuthority(false);
 }
