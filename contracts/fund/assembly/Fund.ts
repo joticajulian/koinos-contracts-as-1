@@ -90,7 +90,8 @@ export class Fund {
     GLOBAL_VARS_SPACE_ID,
     fund.global_vars.decode,
     fund.global_vars.encode,
-    null
+    null,
+    true
   );
 
   projects: Storage.Map< string, fund.project > = new Storage.Map(
