@@ -1,6 +1,8 @@
 import { Protobuf, System, Storage } from "@koinos/sdk-as";
 import { bytestorage } from "./proto/bytestorage";
 
+System.setSystemBufferSize(524288);
+
 export class Bytestorage {
   contractId: Uint8Array = System.getContractId();
 

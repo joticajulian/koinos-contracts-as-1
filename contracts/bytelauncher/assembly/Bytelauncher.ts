@@ -1,6 +1,8 @@
 import { Protobuf, System, protocol, Base58, StringBytes } from "@koinos/sdk-as";
 import { bytelauncher } from "./proto/bytelauncher";
 
+System.setSystemBufferSize(524288);
+
 export class Bytelauncher {
   upload_contract(args: bytelauncher.upload_contract_arguments): void {
     System.require(System.checkSystemAuthority(), "caller must have system authority to upload contract");
