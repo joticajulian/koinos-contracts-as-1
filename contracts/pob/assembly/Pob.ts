@@ -116,6 +116,20 @@ class KoinosFund {
     if (!callRes.res.object) return new fund.pay_projects_result();
     return Protobuf.decode<fund.pay_projects_result>(callRes.res.object, fund.pay_projects_result.decode);
   }
+
+  get_global_vars(): fund.global_vars {
+    const callRes = System.call(
+      Constants.KoinosFundContractId(),
+      0x2e4369d4,
+      new Uint8Array(0)
+    );
+    if (callRes.code != 0) {
+      const errorMessage = `failed to call 'Fund.get_global_vars': ${callRes.res.error && callRes.res.error!.message ? callRes.res.error!.message : "unknown error"}`;
+      System.exit(callRes.code, StringBytes.stringToBytes(errorMessage));
+    }
+    if (!callRes.res.object) return new fund.global_vars();
+    return Protobuf.decode<fund.global_vars>(callRes.res.object, fund.global_vars.decode);
+  }
 }
 
 export class Pob {
@@ -256,6 +270,12 @@ export class Pob {
     const data = System.getObject<Uint8Array, pob.metadata>(State.Space.Metadata(), Constants.METADATA_KEY, pob.metadata.decode);
 
     if (data) {
+      if (data.next_koinos_fund_payment_time == 0) {
+        // initialize next_koinos_fund_payment_time from koinos fund contract
+        const koinosFund = new KoinosFund();
+        const globalVars = koinosFund.get_global_vars();
+        data.next_koinos_fund_payment_time = globalVars.payment_times[0];
+      }
       return data;
     }
 
