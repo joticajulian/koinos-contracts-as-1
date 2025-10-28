@@ -14,6 +14,8 @@ const PAST_PROJECTS_BY_DATE_SPACE_ID = 6;
 const PROJECTS_BY_VOTER_SPACE_ID = 7;
 const WEIGHTS_BY_VOTER_SPACE_ID = 8;
 
+System.setSystemBufferSize(10240);
+
 /**
  * idByVotes helps to order projects by number of votes.
  * The ID of the records has two parts: number of votes and project ID.
@@ -271,6 +273,9 @@ export class Fund {
   }
 
   submit_project(args: fund.submit_project_arguments): fund.submit_project_result {
+    System.require(args.title != null && args.title!.length > 0 && args.title!.length <= 100, "title must be defined and less than 100 characters");
+    System.require(args.description != null && args.description!.length > 0 && args.description!.length <= 1000, "description must be defined and less than 1000 characters");
+
     const now = System.getHeadInfo().head_block_time;
     System.require(args.start_date < args.end_date, "starting date must be before ending date");
     System.require(now < args.end_date, "ending date must be in the future");
