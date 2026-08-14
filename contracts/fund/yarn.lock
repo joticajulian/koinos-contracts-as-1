@@ -767,10 +767,10 @@
     ts-poet "^4.9.0"
     typescript "^4.6.4"
 
-"@koinos/mock-vm@1.2.0":
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/@koinos/mock-vm/-/mock-vm-1.2.0.tgz#1398ead9200fe5a30ec596773faa88a0dee20f78"
-  integrity sha512-hdCFD0xz0SZYOjL4nNZE5QSAJRGr5sRpPKVJBqvGoPclo7WTdY+c3EO+qvJYWTRwuj2/TpYeNl3Rjf8VqvJ0AQ==
+"@koinos/mock-vm@1.3.0":
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/@koinos/mock-vm/-/mock-vm-1.3.0.tgz#2df42153c8aba3a2cddcfe0e61214e81847dada6"
+  integrity sha512-ykriKnxOErekb1/Kcr91FMyBFt9OaGhC2d3w38lgkzfysUOK8ZKZ/FpGnA1/AzXpduFxU/dT4IrSJ4hSKGRg0g==
   dependencies:
     "@koinos/proto-js" "2.1.0"
     "@noble/hashes" "^1.0.0"
@@ -800,17 +800,17 @@
     chalk "4.1.2"
     commander "^9.0.0"
 
-"@koinos/sdk-as@1.3.0":
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/@koinos/sdk-as/-/sdk-as-1.3.0.tgz#3a9cc62db24b6aac84c537b7107daa7a86d0cdf8"
-  integrity sha512-AxyVsDLb3BNxpFtfZHabZskFCjY/92MTovcEzLljbNAC3UC1G6ekCJFdKu1LICEJ5LuVFiet+VVt7F0YhOrchQ==
+"@koinos/sdk-as@1.5.0":
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/@koinos/sdk-as/-/sdk-as-1.5.0.tgz#31ac7fc813b3e66a799fc24357ad65c8746e619d"
+  integrity sha512-RF9+ne/4WHkWmeyfetZxIdO39ROZQad8MI1g4t6oHY4JIC88Nu7OC067gWtj+6c+aZE2ePfvECqKJqEin8th+g==
   dependencies:
     "@as-covers/core" "^0.4.2"
     "@as-pect/cli" "^8.0.1"
     "@koinos/abi-proto-gen" "1.0.0"
     "@koinos/as-gen" "1.0.0"
     "@koinos/as-proto-gen" "1.0.0"
-    "@koinos/mock-vm" "1.2.0"
+    "@koinos/mock-vm" "1.3.0"
     "@koinos/proto-as" "2.2.0"
     "@koinos/sdk-as-cli" "^1.0.2"
     "@roamin/protoc" "^2.4.0"

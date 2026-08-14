@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "devDependencies": {
-    "@koinos/sdk-as": "1.3.0",
+    "@koinos/sdk-as": "1.5.1",
     "@types/jest": "^27.5.1",
     "@typescript-eslint/eslint-plugin": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
@@ -24,10 +24,7 @@
     "integration-tests": "yarn jest",
     "local-koinos-auto": "local-koinos start -i 5000",
     "local-koinos:start": "local-koinos start",
-    "local-koinos:stop": "local-koinos stop",
-    "postinstall": "patch-package"
+    "local-koinos:stop": "local-koinos stop"
   },
-  "dependencies": {
-    "patch-package": "^8.0.0"
-  }
+  "dependencies": {}
 }

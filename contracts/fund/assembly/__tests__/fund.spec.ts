@@ -1980,9 +1980,8 @@ describe("Fund contract", () => {
     MockVM.clearCallContractArguments();
     updateBalance(user9, "from 500 VHP to 1500 VHP");
     MockVM.commitTransaction();
-    expect(() => {
-      MockVM.getCallContractArguments();
-    }).toThrow(); // token contracts are not called back
+    callContractArguments = MockVM.getCallContractArguments();
+    expect(callContractArguments.length).toBe(0); // token contracts are not called back
 
     // try to renew vote of the past project
     expect(() => {
