@@ -334,7 +334,7 @@ export class Fund {
   }
 
   update_vote(args: fund.update_vote_arguments): fund.update_vote_result {
-    System.require(System.checkAccountAuthority(args.voter!), "not authorized by the voter")
+    System.require(System.checkAccountAuthority(args.voter!), "not authorized by the voter");
     const globalVars = this.globalVars.get();
     System.require(globalVars, "fund contract not configured");
     const project = this.projects.get(`${args.project_id}`);
